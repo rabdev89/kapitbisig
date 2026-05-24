@@ -38,7 +38,8 @@ async function attemptLogin() {
 
   setLoading(true);
   try {
-    const user = await AuthAPI.signin(id, pwd);
+    const res = await AuthAPI.signin(id, pwd);
+    const user = res.user || res;
     setLoading(false);
 
     const allowed = ['admin', 'superadmin', 'ngo'];

@@ -159,6 +159,12 @@ const NGOAPI = {
 
 /* ── ADMIN API ── */
 const AdminAPI = {
+	createUser: (data) =>
+		http.post('/admin/users', data),
+
+	createNGOProfile: (data) =>
+		http.post('/admin/ngos', data),
+
 	getAllUsers: (filters = {}) => {
 		const params = new URLSearchParams();
 		params.append('limit',  filters.limit  || 50);

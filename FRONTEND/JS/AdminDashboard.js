@@ -118,6 +118,12 @@
 		return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(value || 0);
 	}
 
+	function escHtml(text) {
+		const d = document.createElement('div');
+		d.appendChild(document.createTextNode(String(text || '')));
+		return d.innerHTML;
+	}
+
 	function getRoleFromURL() {
 		const role = new URLSearchParams(window.location.search).get('role');
 		return role === 'ngo' || role === 'superadmin' ? role : null;
@@ -451,41 +457,35 @@
 		const table = qs('ngoTable');
 		if (!table) return;
 
-		if (PLACEHOLDER_MODE) {
-			table.innerHTML = `
-				<thead><tr><th>Organization</th><th>Contact</th><th>Status</th><th>Campaigns</th><th>Raised</th></tr></thead>
-				<tbody>
-					<tr>
-						<td><strong>Template Organization</strong></td>
-						<td>Template Contact</td>
-						<td><span class="badge badge-pending">Template</span></td>
-						<td>--</td>
-						<td>--</td>
-					</tr>
-					<tr><td colspan="5">NGO Management is template-only until backend data is connected.</td></tr>
-				</tbody>
-			`;
-			return;
-		}
-
+		const canAct = state.role === 'admin' || state.role === 'superadmin';
 		const rows = data.ngos
 			.filter((ngo) => !state.ngoSearch || ngo.name.toLowerCase().includes(state.ngoSearch))
-			.map(
-				(ngo) => `
-					<tr>
-						<td><strong>${ngo.name}</strong></td>
-						<td>${ngo.contact}</td>
-						<td><span class="badge ${badgeClass(ngo.status)}">${ngo.status}</span></td>
-						<td>${ngo.campaigns}</td>
-						<td>${fmtMoney(ngo.raised)}</td>
-					</tr>
-				`
-			)
-			.join('');
+			.map((ngo) => `
+				<tr>
+					<td>
+						<strong>${escHtml(ngo.name)}</strong>
+						<div style="font-size:11px;color:var(--text-soft);margin-top:2px">${escHtml(ngo.registrationNumber || '')}</div>
+					</td>
+					<td>
+						<div>${escHtml(ngo.contact || '—')}</div>
+						<div style="font-size:11px;color:var(--text-soft)">${escHtml(ngo.email || '')}</div>
+					</td>
+					<td><span class="badge ${badgeClass(ngo.status)}">${ngo.status}</span></td>
+					<td>${ngo.campaigns}</td>
+					<td>${fmtMoney(ngo.raised)}</td>
+					${canAct ? `<td class="td-actions">
+						${ngo.status !== 'Verified' ? `<button class="btn btn-success btn-sm" onclick="verifyNGO('${ngo.id}')">Verify</button>` : ''}
+						${ngo.status !== 'Rejected' ? `<button class="btn btn-danger btn-sm" onclick="rejectNGO('${ngo.id}')">Reject</button>` : ''}
+						<button class="btn btn-ghost btn-sm" onclick="editNGO('${ngo.id}')">Edit</button>
+						<button class="btn btn-danger btn-sm" onclick="deleteNGO('${ngo.id}')">Delete</button>
+					</td>` : ''}
+				</tr>
+			`).join('');
 
+		const actionsHeader = canAct ? '<th>Actions</th>' : '';
 		table.innerHTML = `
-			<thead><tr><th>Organization</th><th>Contact</th><th>Status</th><th>Campaigns</th><th>Raised</th></tr></thead>
-			<tbody>${rows || '<tr><td colspan="5">No NGO records.</td></tr>'}</tbody>
+			<thead><tr><th>Organization</th><th>Contact</th><th>Status</th><th>Campaigns</th><th>Raised</th>${actionsHeader}</tr></thead>
+			<tbody>${rows || `<tr><td colspan="${canAct ? 6 : 5}" style="text-align:center;padding:24px;color:var(--text-soft)">No NGO records found.</td></tr>`}</tbody>
 		`;
 	}
 
@@ -493,30 +493,34 @@
 		const table = qs('userTable');
 		if (!table) return;
 
-		if (PLACEHOLDER_MODE) {
-			table.innerHTML = `
-				<thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th></tr></thead>
-				<tbody><tr><td><strong>Template User</strong></td><td>template@domain</td><td><span class="badge badge-admin">template</span></td><td>Awaiting backend</td></tr></tbody>
-			`;
-			return;
-		}
+		const isSuperAdmin = state.role === 'superadmin';
+		const rows = data.users.map((user) => `
+			<tr>
+				<td>
+					<strong>${escHtml(user.name)}</strong>
+					<div style="font-size:11px;color:var(--text-soft);margin-top:2px">#${user.id}</div>
+				</td>
+				<td>${escHtml(user.email)}</td>
+				<td><span class="badge badge-${user.role}">${user.role}</span></td>
+				<td><span class="badge badge-approved">Active</span></td>
+				<td style="font-size:12px;color:var(--text-soft)">${user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' }) : '—'}</td>
+				${isSuperAdmin ? `<td class="td-actions">
+					<select class="filter-select" style="font-size:11px;padding:4px 8px;height:auto"
+					        onchange="changeUserRole('${user.id}', this.value)" title="Change role">
+						<option value="donor"      ${user.role==='donor'      ? 'selected':''}>Donor</option>
+						<option value="ngo"        ${user.role==='ngo'        ? 'selected':''}>NGO</option>
+						<option value="admin"      ${user.role==='admin'      ? 'selected':''}>Admin</option>
+						<option value="superadmin" ${user.role==='superadmin' ? 'selected':''}>Super Admin</option>
+					</select>
+					<button class="btn btn-danger btn-sm" onclick="deleteUserAccount('${user.id}')">Delete</button>
+				</td>` : ''}
+			</tr>
+		`).join('');
 
+		const actionsHeader = isSuperAdmin ? '<th>Actions</th>' : '';
 		table.innerHTML = `
-			<thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th></tr></thead>
-			<tbody>
-				${data.users
-					.map(
-						(user) => `
-							<tr>
-								<td><strong>${user.name}</strong></td>
-								<td>${user.email}</td>
-								<td><span class="badge badge-${user.role}">${user.role}</span></td>
-								<td>${user.status}</td>
-							</tr>
-						`
-					)
-					.join('')}
-			</tbody>
+			<thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th>${actionsHeader}</tr></thead>
+			<tbody>${rows || `<tr><td colspan="${isSuperAdmin ? 6 : 5}" style="text-align:center;padding:24px;color:var(--text-soft)">No users found.</td></tr>`}</tbody>
 		`;
 	}
 
@@ -646,34 +650,45 @@
 			.join('');
 	}
 
-	function renderLogs() {
+	function renderLogs(filterAction, filterDate) {
 		const table = qs('logsTable');
 		if (!table) return;
 
-		if (PLACEHOLDER_MODE) {
-			table.innerHTML = `
-				<thead><tr><th>Date/Time</th><th>Action</th><th>Actor</th><th>Details</th></tr></thead>
-				<tbody><tr><td colspan="4">Activity Logs placeholder. Audit logs will load from backend.</td></tr></tbody>
-			`;
-			return;
+		const actionColors = {
+			LOGIN: '#4a9cc7', LOGOUT: '#888',
+			CREATE_CAMPAIGN: '#2e9e6e', EDIT_CAMPAIGN: '#F39C12', DELETE_CAMPAIGN: '#E74C3C',
+			DONATE: '#27AE60',
+			APPROVE: '#2e9e6e', REJECT: '#E74C3C',
+			UPDATE_ROLE: '#9b59b6', DELETE_USER: '#E74C3C',
+		};
+
+		let logs = data.logs;
+		if (filterAction && filterAction !== 'all') {
+			logs = logs.filter((l) => l.action === filterAction);
+		}
+		if (filterDate) {
+			logs = logs.filter((l) => l.rawDate && l.rawDate.slice(0, 10) === filterDate);
 		}
 
+		const rows = logs.map((row) => {
+			const color = actionColors[row.action] || '#999';
+			const label = row.action.replace(/_/g, ' ');
+			return `
+				<tr class="log-row">
+					<td style="white-space:nowrap;font-size:12px">${row.date}</td>
+					<td><span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${color}22;color:${color};letter-spacing:0.3px">${label}</span></td>
+					<td>
+						<strong>${escHtml(row.actorName || row.actor)}</strong>
+						<div style="font-size:11px;color:var(--text-soft)">${escHtml(row.actorEmail || '')}</div>
+					</td>
+					<td style="font-size:13px">${escHtml(row.detail)}</td>
+				</tr>
+			`;
+		}).join('');
+
 		table.innerHTML = `
-			<thead><tr><th>Date/Time</th><th>Action</th><th>Actor</th><th>Details</th></tr></thead>
-			<tbody>
-				${data.logs
-					.map(
-						(row) => `
-							<tr class="log-row">
-								<td>${row.date}</td>
-								<td><span class="action-tag ${row.action}">${row.action}</span></td>
-								<td><strong>${row.actor}</strong></td>
-								<td>${row.detail}</td>
-							</tr>
-						`
-					)
-					.join('')}
-			</tbody>
+			<thead><tr><th>Date / Time</th><th>Action</th><th>Actor</th><th>Details</th></tr></thead>
+			<tbody>${rows || '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-soft)">No activity logs found.</td></tr>'}</tbody>
 		`;
 	}
 
@@ -1090,16 +1105,24 @@
 				email: u.email,
 				role: u.role,
 				status: 'Active',
-				id: u.id
+				id: u.id,
+				createdAt: u.createdAt
 			}));
 
 			data.ngos = ngos.map((n) => ({
 				name: n.name,
 				contact: n.phoneNumber || '',
-				status: n.verificationStatus.charAt(0).toUpperCase() + n.verificationStatus.slice(1),
+				email: n.email || '',
+				registrationNumber: n.registrationNumber || '',
+				status: n.verificationStatus
+					? n.verificationStatus.charAt(0).toUpperCase() + n.verificationStatus.slice(1)
+					: 'Pending',
 				campaigns: 0,
 				raised: 0,
-				id: n.id
+				id: n.id,
+				websiteUrl: n.websiteUrl || '',
+				address: n.address || '',
+				description: n.description || ''
 			}));
 
 			const ngoMap = {};
@@ -1117,8 +1140,11 @@
 
 			data.logs = logs.map((l) => ({
 				date: new Date(l.createdAt).toLocaleString('en-PH'),
+				rawDate: l.createdAt,
 				action: l.action,
-				actor: l.adminId,
+				actor: l.actorName || l.adminId,
+				actorName: l.actorName || null,
+				actorEmail: l.actorEmail || null,
 				detail: l.description || `${l.action} on ${l.entityType}`
 			}));
 		} catch (_err) {
@@ -1274,6 +1300,55 @@
 	function filterNGOs(value) {
 		state.ngoSearch = String(value || '').trim().toLowerCase();
 		renderNGOTable();
+	}
+
+	function filterLogs() {
+		const actionEl = document.querySelector('#page-activity-logs .filter-select');
+		const dateEl   = document.querySelector('#page-activity-logs input[type="date"]');
+		const action   = actionEl ? actionEl.value : '';
+		const date     = dateEl   ? dateEl.value   : '';
+		renderLogs(action, date);
+	}
+
+	async function verifyNGO(id) {
+		if (!confirm('Mark this NGO as Verified?')) return;
+		try {
+			await NGOAPI.verify(id);
+			showToast('NGO verified.', 'success');
+			await loadDashboardData();
+			renderNGOTable();
+		} catch (err) {
+			showToast(err.message || 'Failed to verify NGO.', 'error');
+		}
+	}
+
+	async function rejectNGO(id) {
+		if (!confirm('Reject this NGO? This will mark them as rejected.')) return;
+		try {
+			await NGOAPI.reject(id);
+			showToast('NGO rejected.', 'info');
+			await loadDashboardData();
+			renderNGOTable();
+		} catch (err) {
+			showToast(err.message || 'Failed to reject NGO.', 'error');
+		}
+	}
+
+	async function changeUserRole(userId, newRole) {
+		if (!confirm(`Change this user's role to "${newRole}"?`)) {
+			renderUserTable();
+			return;
+		}
+		try {
+			await AdminAPI.updateUserRole(userId, newRole);
+			showToast(`Role updated to ${newRole}.`, 'success');
+			const idx = data.users.findIndex((u) => String(u.id) === String(userId));
+			if (idx !== -1) data.users[idx].role = newRole;
+			renderUserTable();
+		} catch (err) {
+			showToast(err.message || 'Failed to update role.', 'error');
+			renderUserTable();
+		}
 	}
 
 	function updateChart(_range) {
@@ -1520,16 +1595,135 @@
 		}
 	}
 
-	function createUser() {
+	async function createUser() {
+		const fullName = (qs('newUserFullName')?.value || '').trim();
+		const email = (qs('newUserEmail')?.value || '').trim();
 		const role = qs('newUserRole')?.value || 'admin';
-		const generatedId = qs('generatedId')?.value || 'USR-000';
-		showToast(`User created (${role.toUpperCase()} · ${generatedId}).`, 'success');
-		closeModal('createUserModal');
+		const password = (qs('genPassword')?.textContent || '').trim();
+
+		if (!fullName) { showToast('Full name is required.', 'error'); return; }
+		if (!email) { showToast('Email is required.', 'error'); return; }
+
+		const parts = fullName.split(/\s+/);
+		const firstName = parts[0];
+		const lastName = parts.slice(1).join(' ') || parts[0];
+
+		try {
+			await AdminAPI.createUser({ firstName, lastName, email, password, role });
+			showToast(`${role.charAt(0).toUpperCase() + role.slice(1)} account created for ${email}.`, 'success');
+			closeModal('createUserModal');
+			if (qs('newUserFullName')) qs('newUserFullName').value = '';
+			if (qs('newUserEmail')) qs('newUserEmail').value = '';
+			await loadDashboardData();
+			renderUserTable();
+		} catch (err) {
+			showToast(err.message || 'Failed to create account.', 'error');
+		}
 	}
 
-	function createNGO() {
-		showToast('NGO registration saved.', 'success');
-		closeModal('createNGOModal');
+	async function createNGO() {
+		const orgName = (qs('ngoOrgName')?.value || '').trim();
+		const contactPerson = (qs('ngoContactPerson')?.value || '').trim();
+		const email = (qs('ngoEmail')?.value || '').trim();
+		const phone = (qs('ngoPhone')?.value || '').trim();
+		const regNumber = (qs('ngoRegNumber')?.value || '').trim();
+		const address = (qs('ngoAddress')?.value || '').trim();
+
+		if (!orgName) { showToast('Organization name is required.', 'error'); return; }
+		if (!email) { showToast('Email is required.', 'error'); return; }
+		if (!regNumber) { showToast('Registration number is required.', 'error'); return; }
+
+		const parts = contactPerson.split(/\s+/);
+		const firstName = parts[0] || orgName.split(/\s+/)[0];
+		const lastName = parts.slice(1).join(' ') || 'NGO';
+		const tempPassword = `Kb@Ngo${Math.floor(1000 + Math.random() * 9000)}!`;
+
+		try {
+			const userRes = await AdminAPI.createUser({ firstName, lastName, email, password: tempPassword, role: 'ngo' });
+			const userId = userRes.user && userRes.user.id;
+			if (!userId) throw new Error('User creation failed.');
+
+			await AdminAPI.createNGOProfile({
+				userId,
+				name: orgName,
+				phoneNumber: phone || null,
+				address: address || null,
+				registrationNumber: regNumber
+			});
+
+			showToast(`NGO "${orgName}" registered. Login: ${email} / ${tempPassword}`, 'success');
+			closeModal('createNGOModal');
+			['ngoOrgName','ngoContactPerson','ngoEmail','ngoPhone','ngoRegNumber','ngoAddress'].forEach((id) => {
+				if (qs(id)) qs(id).value = '';
+			});
+			await loadDashboardData();
+			renderNGOTable();
+		} catch (err) {
+			showToast(err.message || 'Failed to register NGO.', 'error');
+		}
+	}
+
+	function editNGO(id) {
+		const ngo = data.ngos.find((n) => String(n.id) === String(id));
+		if (!ngo) return;
+		if (qs('editNGOId')) qs('editNGOId').value = id;
+		if (qs('editNGOName')) qs('editNGOName').value = ngo.name || '';
+		if (qs('editNGOPhone')) qs('editNGOPhone').value = ngo.contact || '';
+		if (qs('editNGOWebsite')) qs('editNGOWebsite').value = ngo.websiteUrl || '';
+		if (qs('editNGOAddress')) qs('editNGOAddress').value = ngo.address || '';
+		if (qs('editNGODescription')) qs('editNGODescription').value = ngo.description || '';
+		openModal('editNGOModal');
+	}
+
+	async function saveEditNGO() {
+		const id = qs('editNGOId')?.value;
+		if (!id) return;
+		const name = (qs('editNGOName')?.value || '').trim();
+		if (!name) { showToast('Organization name is required.', 'error'); return; }
+
+		const payload = {
+			name,
+			phoneNumber: (qs('editNGOPhone')?.value || '').trim() || null,
+			websiteUrl: (qs('editNGOWebsite')?.value || '').trim() || null,
+			address: (qs('editNGOAddress')?.value || '').trim() || null,
+			description: (qs('editNGODescription')?.value || '').trim() || null
+		};
+
+		try {
+			await NGOAPI.update(id, payload);
+			showToast('NGO profile updated.', 'success');
+			closeModal('editNGOModal');
+			await loadDashboardData();
+			renderNGOTable();
+		} catch (err) {
+			showToast(err.message || 'Failed to update NGO.', 'error');
+		}
+	}
+
+	async function deleteNGO(id) {
+		const ngo = data.ngos.find((n) => String(n.id) === String(id));
+		if (!confirm(`Delete NGO "${ngo ? ngo.name : id}"? This cannot be undone.`)) return;
+		try {
+			await NGOAPI.delete(id);
+			showToast('NGO deleted.', 'success');
+			await loadDashboardData();
+			renderNGOTable();
+		} catch (err) {
+			showToast(err.message || 'Failed to delete NGO.', 'error');
+		}
+	}
+
+	async function deleteUserAccount(userId) {
+		const user = data.users.find((u) => String(u.id) === String(userId));
+		if (!confirm(`Delete account for "${user ? user.name : userId}"? This cannot be undone.`)) return;
+		try {
+			await AdminAPI.deleteUser(userId);
+			showToast('User account deleted.', 'success');
+			await loadDashboardData();
+			renderUserTable();
+		} catch (err) {
+			showToast(err.message || 'Failed to delete user.', 'error');
+		}
 	}
 
 	function updateUserForm() {
@@ -1635,6 +1829,14 @@
 	window.updateUserForm = updateUserForm;
 	window.showToast = showToast;
 	window.logout = logout;
+	window.verifyNGO = verifyNGO;
+	window.rejectNGO = rejectNGO;
+	window.editNGO = editNGO;
+	window.saveEditNGO = saveEditNGO;
+	window.deleteNGO = deleteNGO;
+	window.deleteUserAccount = deleteUserAccount;
+	window.changeUserRole = changeUserRole;
+	window.filterLogs = filterLogs;
 
 	init();
 })();
