@@ -13,6 +13,8 @@ function mapDonation(row) {
 		status: row.status,
 		transactionRef: row.transaction_ref,
 		message: row.message,
+		proofImage: row.proof_image || null,
+		proofNotes: row.proof_notes || null,
 		createdAt: row.created_at
 	};
 }
@@ -28,6 +30,8 @@ async function createDonationsTable() {
 			status ENUM('pending', 'completed', 'failed', 'refunded') NOT NULL DEFAULT 'pending',
 			transaction_ref VARCHAR(100),
 			message TEXT,
+			proof_image MEDIUMTEXT,
+			proof_notes TEXT,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (donation_id),
 			FOREIGN KEY (campaign_id) REFERENCES campaigns(campaign_id) ON DELETE CASCADE,
@@ -37,6 +41,8 @@ async function createDonationsTable() {
 			INDEX idx_status (status)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 	`);
+	await db.query(`ALTER TABLE donations ADD COLUMN IF NOT EXISTS proof_image MEDIUMTEXT`);
+	await db.query(`ALTER TABLE donations ADD COLUMN IF NOT EXISTS proof_notes TEXT`);
 }
 
 async function findById(id) {
@@ -71,14 +77,16 @@ async function findByDonorId(donorId, limit = 50, offset = 0) {
 
 async function create(data) {
 	const [result] = await db.query(
-		`INSERT INTO donations (campaign_id, donor_id, amount, payment_method, status, message)
-		 VALUES (?, ?, ?, ?, 'pending', ?)`,
+		`INSERT INTO donations (campaign_id, donor_id, amount, payment_method, status, message, proof_image, proof_notes)
+		 VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)`,
 		[
 			Number(data.campaignId),
 			Number(data.donorId),
 			data.amount,
 			data.paymentMethod,
-			data.message || null
+			data.message || null,
+			data.proofImage || null,
+			data.proofNotes || null
 		]
 	);
 	return findById(result.insertId);

@@ -8,6 +8,7 @@ function mapNgo(row) {
 		id: String(row.ngo_id),
 		userId: String(row.user_id),
 		name: row.ngo_name,
+		email: row.user_email || null,
 		description: row.description,
 		websiteUrl: row.website_url,
 		phoneNumber: row.phone_number,
@@ -75,8 +76,10 @@ async function findByVerificationStatus(status, limit = 50, offset = 0) {
 
 async function findAll(limit = 50, offset = 0) {
 	const [rows] = await db.query(
-		`SELECT * FROM ngo_profiles
-		 ORDER BY created_at DESC
+		`SELECT n.*, u.email AS user_email
+		 FROM ngo_profiles n
+		 LEFT JOIN users u ON u.user_id = n.user_id
+		 ORDER BY n.created_at DESC
 		 LIMIT ? OFFSET ?`,
 		[limit, offset]
 	);

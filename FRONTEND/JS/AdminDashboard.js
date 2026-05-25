@@ -692,12 +692,106 @@
 		`;
 	}
 
-	function renderSettings() {
+	async function loadPaymentSettingsPanel() {
+		const container = qs('settingsPayment');
+		if (!container) return;
+		container.innerHTML = '<p style="color:#888;font-size:0.85rem">Loading…</p>';
+		try {
+			const res = await SettingsAPI.getPayment();
+			const s = res.settings;
+			container.innerHTML = `
+				<div style="display:flex;flex-direction:column;gap:14px">
+					<div style="border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:4px">
+						<p style="font-size:0.78rem;color:#888;margin:0">Toggle which payment methods donors can use. Bank Transfer is the offline method — donors upload a screenshot as proof.</p>
+					</div>
+					<div class="form-group" style="display:flex;align-items:center;justify-content:space-between">
+						<div>
+							<label class="form-label" style="margin:0">Bank Transfer (Offline)</label>
+							<p style="font-size:0.75rem;color:#888;margin:2px 0 0">Donors upload a payment screenshot as proof</p>
+						</div>
+						<label class="toggle"><input type="checkbox" id="pg-bank_transfer" ${s.bankTransferEnabled ? 'checked' : ''}><span class="toggle-track"></span></label>
+					</div>
+					<div class="form-group" style="display:flex;align-items:center;justify-content:space-between">
+						<div>
+							<label class="form-label" style="margin:0">GCash</label>
+							<p style="font-size:0.75rem;color:#888;margin:2px 0 0">Requires Paymongo integration</p>
+						</div>
+						<label class="toggle"><input type="checkbox" id="pg-gcash" ${s.gcashEnabled ? 'checked' : ''}><span class="toggle-track"></span></label>
+					</div>
+					<div class="form-group" style="display:flex;align-items:center;justify-content:space-between">
+						<div>
+							<label class="form-label" style="margin:0">PayMaya</label>
+							<p style="font-size:0.75rem;color:#888;margin:2px 0 0">Requires Paymongo integration</p>
+						</div>
+						<label class="toggle"><input type="checkbox" id="pg-paymaya" ${s.paymayaEnabled ? 'checked' : ''}><span class="toggle-track"></span></label>
+					</div>
+					<div class="form-group" style="display:flex;align-items:center;justify-content:space-between">
+						<div>
+							<label class="form-label" style="margin:0">Credit / Debit Card</label>
+							<p style="font-size:0.75rem;color:#888;margin:2px 0 0">Requires payment processor integration</p>
+						</div>
+						<label class="toggle"><input type="checkbox" id="pg-card" ${s.cardEnabled ? 'checked' : ''}><span class="toggle-track"></span></label>
+					</div>
+					<div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+						<p style="font-size:0.82rem;font-weight:600;margin:0 0 10px">Bank Transfer Details</p>
+						<div class="form-group">
+							<label class="form-label">Bank Name</label>
+							<input class="form-input" id="pg-bankName" value="${escHtml(s.bankName)}" placeholder="e.g. BDO Unibank"/>
+						</div>
+						<div class="form-group" style="margin-top:10px">
+							<label class="form-label">Account Number</label>
+							<input class="form-input" id="pg-bankAccount" value="${escHtml(s.bankAccountNumber)}" placeholder="e.g. 1234-5678-9012"/>
+						</div>
+						<div class="form-group" style="margin-top:10px">
+							<label class="form-label">Account Name</label>
+							<input class="form-input" id="pg-bankPayee" value="${escHtml(s.bankAccountName)}" placeholder="e.g. KapitBisig Foundation"/>
+						</div>
+						<div class="form-group" style="margin-top:10px">
+							<label class="form-label">Instructions for Donors</label>
+							<textarea class="form-input" id="pg-bankInstructions" rows="3" style="resize:vertical">${escHtml(s.bankInstructions)}</textarea>
+						</div>
+					</div>
+				</div>
+			`;
+		} catch (_) {
+			container.innerHTML = '<p style="color:#c0392b;font-size:0.85rem">Failed to load payment settings.</p>';
+		}
+	}
+
+	function escHtml(str) {
+		return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+	}
+
+	async function savePaymentSettings() {
+		try {
+			await SettingsAPI.updatePayment({
+				bankTransferEnabled: !!(qs('pg-bank_transfer') && qs('pg-bank_transfer').checked),
+				gcashEnabled:        !!(qs('pg-gcash')         && qs('pg-gcash').checked),
+				paymayaEnabled:      !!(qs('pg-paymaya')       && qs('pg-paymaya').checked),
+				cardEnabled:         !!(qs('pg-card')           && qs('pg-card').checked),
+				bankName:            (qs('pg-bankName')         && qs('pg-bankName').value)         || '',
+				bankAccountNumber:   (qs('pg-bankAccount')      && qs('pg-bankAccount').value)      || '',
+				bankAccountName:     (qs('pg-bankPayee')        && qs('pg-bankPayee').value)        || '',
+				bankInstructions:    (qs('pg-bankInstructions') && qs('pg-bankInstructions').value) || ''
+			});
+			showToast('Payment settings saved!', 'success');
+		} catch (err) {
+			showToast('Failed to save: ' + err.message, 'error');
+		}
+	}
+
+	async function renderSettings() {
 		const general = qs('settingsGeneral');
 		const security = qs('settingsSecurity');
 		if (!general || !security) return;
 
 		const isSuperAdmin = state.role === 'superadmin';
+
+		if (isSuperAdmin) {
+			const payCard = qs('paymentSettingsCard');
+			if (payCard) payCard.style.display = '';
+			await loadPaymentSettingsPanel();
+		}
 
 		if (!isSuperAdmin) {
 			general.innerHTML = `
@@ -1837,6 +1931,7 @@
 	window.deleteUserAccount = deleteUserAccount;
 	window.changeUserRole = changeUserRole;
 	window.filterLogs = filterLogs;
+	window.savePaymentSettings = savePaymentSettings;
 
 	init();
 })();

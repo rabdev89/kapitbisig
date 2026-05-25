@@ -57,39 +57,52 @@ async function findByAdminId(adminId, limit = 100, offset = 0) {
 }
 
 async function findAll(filters = {}, limit = 100, offset = 0) {
-	let sql = `SELECT * FROM activity_logs WHERE 1=1`;
+	let sql = `
+		SELECT al.*,
+		       CONCAT(u.first_name, ' ', u.last_name) AS actor_name,
+		       u.email AS actor_email,
+		       u.role  AS actor_role
+		FROM activity_logs al
+		LEFT JOIN users u ON u.user_id = al.admin_id
+		WHERE 1=1`;
 	const values = [];
 
 	if (filters.adminId) {
-		sql += ` AND admin_id = ?`;
+		sql += ` AND al.admin_id = ?`;
 		values.push(Number(filters.adminId));
 	}
 
 	if (filters.entityType) {
-		sql += ` AND entity_type = ?`;
+		sql += ` AND al.entity_type = ?`;
 		values.push(filters.entityType);
 	}
 
 	if (filters.action) {
-		sql += ` AND action = ?`;
+		sql += ` AND al.action = ?`;
 		values.push(filters.action);
 	}
 
 	if (filters.startDate) {
-		sql += ` AND created_at >= ?`;
+		sql += ` AND al.created_at >= ?`;
 		values.push(filters.startDate);
 	}
 
 	if (filters.endDate) {
-		sql += ` AND created_at <= ?`;
+		sql += ` AND al.created_at <= ?`;
 		values.push(filters.endDate);
 	}
 
-	sql += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+	sql += ` ORDER BY al.created_at DESC LIMIT ? OFFSET ?`;
 	values.push(limit, offset);
 
 	const [rows] = await db.query(sql, values);
-	return rows.map(mapActivityLog);
+	return rows.map(function (row) {
+		const log = mapActivityLog(row);
+		log.actorName  = row.actor_name  || null;
+		log.actorEmail = row.actor_email || null;
+		log.actorRole  = row.actor_role  || null;
+		return log;
+	});
 }
 
 async function create(data) {

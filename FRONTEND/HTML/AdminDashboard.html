@@ -224,6 +224,14 @@
         <div class="card-footer"><button class="btn btn-primary btn-sm" onclick="showToast('Security settings updated!','success')">Save Changes</button></div>
       </div>
     </div>
+    <div class="card" id="paymentSettingsCard" style="margin-top:24px;display:none">
+      <div class="card-header">
+        <div class="card-header-icon" style="background:linear-gradient(135deg,#27ae60,#1a7a42)"><svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
+        <div class="card-title">Payment Gateway Settings</div>
+      </div>
+      <div class="card-body" id="settingsPayment"></div>
+      <div class="card-footer"><button class="btn btn-primary btn-sm" onclick="savePaymentSettings()">Save Payment Settings</button></div>
+    </div>
   </div>
 
 </main><!-- /main -->

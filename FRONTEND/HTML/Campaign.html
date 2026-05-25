@@ -386,27 +386,47 @@
       </div>
     </div>
 
-    <div class="payment-methods">
-      <div class="pay-method-btn active" id="pm-card" onclick="selectPayMethod('card')">
+    <div class="payment-methods" id="paymentMethodsRow">
+      <div class="pay-method-btn" id="pm-card" onclick="selectPayMethod('card')" style="display:none">
         <div class="pay-method-icon">💳</div>
         <div class="pay-method-name">Card</div>
       </div>
-      <div class="pay-method-btn" id="pm-gcash" onclick="selectPayMethod('gcash')">
+      <div class="pay-method-btn" id="pm-gcash" onclick="selectPayMethod('gcash')" style="display:none">
         <div class="pay-method-icon">📱</div>
         <div class="pay-method-name">GCash</div>
       </div>
-      <div class="pay-method-btn" id="pm-paymaya" onclick="selectPayMethod('paymaya')">
+      <div class="pay-method-btn" id="pm-paymaya" onclick="selectPayMethod('paymaya')" style="display:none">
         <div class="pay-method-icon">🔵</div>
         <div class="pay-method-name">PayMaya</div>
       </div>
+      <div class="pay-method-btn" id="pm-bank_transfer" onclick="selectPayMethod('bank_transfer')" style="display:none">
+        <div class="pay-method-icon">🏦</div>
+        <div class="pay-method-name">Bank Transfer</div>
+      </div>
     </div>
+    <p id="noMethodsMsg" style="display:none;color:#c0392b;font-size:0.85rem;margin:8px 0;">No payment methods are currently available. Please check back later.</p>
 
-    <div class="bank-details" id="bankDetails">
-      <div class="bank-details-header">Bank Transfer Details</div>
-      <div class="bank-details-row"><span>Bank</span><strong id="bankName">BPI</strong></div>
-      <div class="bank-details-row"><span>Account No.</span><strong id="bankAccount">1234 5678 9012</strong></div>
-      <div class="bank-details-row"><span>Account Name</span><strong id="bankPayee">UpSkills+ Foundation Inc.</strong></div>
-      <div class="bank-details-note">Use the bank details above for secure direct transfers. The same NGO details load automatically for this campaign.</div>
+    <!-- Bank Transfer Fields -->
+    <div id="bankFields" style="display:none;">
+      <div class="bank-details">
+        <div class="bank-details-header">Bank Transfer Details</div>
+        <div class="bank-details-row"><span>Bank</span><strong id="bankName">—</strong></div>
+        <div class="bank-details-row"><span>Account No.</span><strong id="bankAccount">—</strong></div>
+        <div class="bank-details-row"><span>Account Name</span><strong id="bankPayee">—</strong></div>
+        <div class="bank-details-note" id="bankInstructions">Transfer the exact donation amount and upload a screenshot of your receipt below.</div>
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label class="form-label">Upload Payment Screenshot <span style="color:#c0392b">*</span></label>
+        <input type="file" class="form-input" id="proofImageInput" accept="image/*" onchange="handleProofUpload(this)" style="padding:6px"/>
+        <p class="form-error" id="proofImageErr">Please upload a screenshot of your payment.</p>
+      </div>
+      <div class="form-group" style="margin-top:8px">
+        <label class="form-label">Reference / Notes (optional)</label>
+        <input type="text" class="form-input" id="proofNotes" placeholder="e.g. Transaction ref #12345"/>
+      </div>
+      <div id="proofPreviewWrap" style="display:none;margin-top:8px">
+        <img id="proofPreview" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid #dde3ef;" alt="Proof preview"/>
+      </div>
     </div>
 
     <!-- Card Fields -->
@@ -465,7 +485,7 @@
       </div>
     </div>
 
-    <div class="secure-badge"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> 256-bit SSL Encrypted · PCI-DSS Compliant</div>
+    <div class="secure-badge" id="sslBadge"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> 256-bit SSL Encrypted · PCI-DSS Compliant</div>
 
     <div class="modal-footer">
       <button class="btn-outline" onclick="closeModal('paymentModal'); openModal('donationModal')">← Back</button>

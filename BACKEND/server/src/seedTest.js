@@ -14,7 +14,7 @@ const TEST_ACCOUNTS = [
 		firstName: 'Test',
 		lastName: 'Admin',
 		email: 'testadmin@kapitbisig.ph',
-		password: 'TestAdmin123!',
+		password: 'Admin@KB2025!',
 		role: 'admin'
 	},
 	{

@@ -1,9 +1,14 @@
 const Campaign = require('../models/campaignModel');
 const NGO = require('../models/ngoModel');
 const User = require('../models/userModel');
+const ActivityLog = require('../models/activityLogModel');
 const { validateRequiredFields, sanitizeString } = require('../utils/validators');
 const { CAMPAIGN_STATUS } = require('../utils/constants');
 const { sendCampaignRejectionEmail, sendNewSubmissionNotificationEmail } = require('./emailService');
+
+function logActivity(userId, action, entityType, entityId, description) {
+	ActivityLog.create({ adminId: userId, action, entityType, entityId, description }).catch(() => {});
+}
 
 async function createCampaign(data, userId) {
 	validateRequiredFields(data, ['title', 'description', 'category', 'targetAmount']);
@@ -18,6 +23,7 @@ async function createCampaign(data, userId) {
 		status: CAMPAIGN_STATUS.DRAFT
 	});
 
+	logActivity(userId, 'CREATE_CAMPAIGN', 'CAMPAIGN', campaign.id, `Created campaign: ${campaign.title}`);
 	return campaign;
 }
 
@@ -63,6 +69,7 @@ async function updateCampaign(id, data, userId) {
 	if (data.endDate) updates.endDate = data.endDate;
 
 	const updated = await Campaign.update(id, updates);
+	logActivity(userId, 'EDIT_CAMPAIGN', 'CAMPAIGN', id, `Edited campaign: ${campaign.title}`);
 	return updated;
 }
 
@@ -191,6 +198,7 @@ async function deleteCampaign(id, userId) {
 	}
 
 	const deleted = await Campaign.delete(id);
+	logActivity(userId, 'DELETE_CAMPAIGN', 'CAMPAIGN', id, `Deleted campaign: ${campaign.title}`);
 	return deleted;
 }
 

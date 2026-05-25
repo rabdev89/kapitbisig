@@ -4,11 +4,13 @@
 		campaign: null,
 		donationAmount: 2000,
 		tipPercent: 5,
-		payMethod: 'card',
+		payMethod: null,
 		likeCount: 0,
 		liked: false,
 		loading: false,
-		shareUrl: ''
+		shareUrl: '',
+		paymentSettings: null,
+		proofImageBase64: null
 	};
 
 	let pollInterval = null;
@@ -285,13 +287,24 @@
 	}
 
 	async function processPayment() {
-		if (!state.campaign) return;
+		if (!state.campaign || !state.payMethod) return;
+
+		if (state.payMethod === 'bank_transfer' && !state.proofImageBase64) {
+			if (qs('proofImageErr')) qs('proofImageErr').classList.add('show');
+			return;
+		}
+
+		const btn = qs('payBtn');
+		if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; }
+
 		try {
 			await DonationAPI.create({
 				campaignId: state.campaign.id,
 				amount: state.donationAmount,
 				paymentMethod: state.payMethod,
-				message: null
+				message: null,
+				proofImage: state.proofImageBase64 || null,
+				proofNotes: (qs('proofNotes') && qs('proofNotes').value) || null
 			});
 
 			setText('successDon', fmtMoney(state.donationAmount));
@@ -299,12 +312,19 @@
 			setText('successTax', fmtMoney(taxAmount(state.donationAmount)));
 			setText('successTotal', fmtMoney(totalAmount()));
 
+			state.proofImageBase64 = null;
+			if (qs('proofImageInput')) qs('proofImageInput').value = '';
+			if (qs('proofPreviewWrap')) qs('proofPreviewWrap').style.display = 'none';
+			if (qs('proofNotes')) qs('proofNotes').value = '';
+
 			closeModal('paymentModal');
 			openModal('successModal');
 
 			setTimeout(loadDonationStats, 1000);
 		} catch (error) {
 			ToastHelper.error('Payment failed: ' + error.message);
+		} finally {
+			if (btn) { btn.disabled = false; btn.style.opacity = ''; }
 		}
 	}
 
@@ -319,6 +339,10 @@
 			var el = qs(fields[m]);
 			if (el) el.style.display = m === method ? '' : 'none';
 		});
+		const label = qs('payBtnLabel');
+		if (label) label.textContent = method === 'bank_transfer' ? 'Submit Donation' : 'Pay Securely';
+		const badge = qs('sslBadge');
+		if (badge) badge.style.display = method === 'bank_transfer' ? 'none' : '';
 	}
 
 	async function toggleLike() {
@@ -442,9 +466,65 @@
 		});
 	}
 
+	async function loadPaymentSettings() {
+		try {
+			const res = await SettingsAPI.getPayment();
+			state.paymentSettings = res.settings;
+		} catch (_) {
+			state.paymentSettings = { bankTransferEnabled: true, gcashEnabled: false, paymayaEnabled: false, cardEnabled: false };
+		}
+		applyPaymentSettings();
+	}
+
+	function applyPaymentSettings() {
+		const s = state.paymentSettings;
+		if (!s) return;
+
+		const map = {
+			card: s.cardEnabled,
+			gcash: s.gcashEnabled,
+			paymaya: s.paymayaEnabled,
+			bank_transfer: s.bankTransferEnabled
+		};
+
+		let firstEnabled = null;
+		Object.entries(map).forEach(function ([method, enabled]) {
+			const btn = qs('pm-' + method);
+			if (btn) btn.style.display = enabled ? '' : 'none';
+			if (enabled && !firstEnabled) firstEnabled = method;
+		});
+
+		if (qs('bankName'))        qs('bankName').textContent        = s.bankName        || '—';
+		if (qs('bankAccount'))     qs('bankAccount').textContent     = s.bankAccountNumber || '—';
+		if (qs('bankPayee'))       qs('bankPayee').textContent       = s.bankAccountName  || '—';
+		if (qs('bankInstructions')) qs('bankInstructions').textContent = s.bankInstructions || '';
+
+		const anyEnabled = Object.values(map).some(Boolean);
+		if (qs('noMethodsMsg'))   qs('noMethodsMsg').style.display  = anyEnabled ? 'none' : '';
+		if (qs('payBtn'))         qs('payBtn').disabled             = !anyEnabled;
+
+		if (firstEnabled) selectPayMethod(firstEnabled);
+	}
+
+	function handleProofUpload(input) {
+		const file = input.files && input.files[0];
+		if (!file) { state.proofImageBase64 = null; return; }
+		const reader = new FileReader();
+		reader.onload = function (e) {
+			state.proofImageBase64 = e.target.result;
+			const preview = qs('proofPreview');
+			const wrap = qs('proofPreviewWrap');
+			if (preview) preview.src = e.target.result;
+			if (wrap) wrap.style.display = '';
+			if (qs('proofImageErr')) qs('proofImageErr').classList.remove('show');
+		};
+		reader.readAsDataURL(file);
+	}
+
 	function init() {
 		initDrawer();
 		initCommentCharCount();
+		loadPaymentSettings();
 		loadCampaign();
 	}
 
@@ -466,6 +546,7 @@
 	window.submitComment = submitComment;
 	window.formatCard = formatCard;
 	window.formatExpiry = formatExpiry;
+	window.handleProofUpload = handleProofUpload;
 
 	document.addEventListener('DOMContentLoaded', init);
 })();

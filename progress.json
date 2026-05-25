@@ -7,10 +7,24 @@
     "Landing page live campaigns grid made fully dynamic — campaignModel.findAll/findById/findByStatus/findByNgoId all LEFT JOIN ngo_profiles so ngoName is returned in every campaign response.",
     "First-run database seeder (src/seed.js) added — auto-creates 1 admin user, 1 NGO user, 1 verified NGO profile, and 6 active campaigns across all categories on empty DB startup.",
     "Test-account seeder (src/seedTest.js) added — run via `npm run seed:test` to upsert testadmin@kapitbisig.ph and testngo@kapitbisig.ph; INSERT IGNORE so safe to re-run.",
-    "Sign-in separation: SignIn.html is now donor-only (admin/NGO are rejected and redirected to AdminLogIn.html). AdminLogIn.html now accepts ngo role in addition to admin/superadmin. Cross-portal links added to both pages."
+    "Sign-in separation: SignIn.html is now donor-only (admin/NGO are rejected and redirected to AdminLogIn.html). AdminLogIn.html now accepts ngo role in addition to admin/superadmin. Cross-portal links added to both pages.",
+    "Fixed 'Unknown column avatar_url' error — replaced ALTER TABLE ADD COLUMN IF NOT EXISTS (silently failing) with INFORMATION_SCHEMA column check; columns are now reliably added to pre-existing tables on server start.",
+    "Fixed admin seed guard — admin user is now always checked/created on startup independently of the campaigns-exist check, so re-runs on populated DBs still create the admin account.",
+    "Fixed AdminLogIn.js role check — AuthAPI.signin returns {message, user:{...}} but code was reading user.role (undefined) instead of res.user.role, causing all logins to fail the allowed-roles check with 'Access denied'.",
+    "Admin Dashboard NGO Management fully dynamic — renderNGOTable wired to live API; shows org name, registration number, contact+email, status badge. Verify/Reject/Edit/Delete action buttons added.",
+    "Admin Dashboard User Management fully dynamic — renderUserTable wired to live API; shows name, email, role badge, joined date. Change Role dropdown (superadmin only) and Delete button added.",
+    "Admin Dashboard Activity Logs fully dynamic — renderLogs wired to live API; color-coded action badges, actor name+email via LEFT JOIN, filterable by action type and date.",
+    "Admin CRUD — NGO Management: Create NGO (POST /admin/users → POST /admin/ngos), Edit NGO (NGOAPI.update), Delete NGO (NGOAPI.delete) all fully wired with table refresh after each operation.",
+    "Admin CRUD — User Management: Create Account (POST /admin/users with role), Delete User (AdminAPI.deleteUser, superadmin only) fully wired with table refresh after each operation.",
+    "Backend: POST /admin/users — new admin endpoint creates user with any role without overwriting the admin's session (avoids the AuthAPI.signup session-takeover problem).",
+    "Backend: POST /admin/ngos — new admin endpoint creates an NGO profile for a specified userId, allowing admins to register NGOs for users they just created.",
+    "Backend: userModel.createUserWithRole added so admin-created users get the correct role at INSERT time.",
+    "Backend: adminService.createAdminUser added — hashes password, creates user with role, logs CREATE_USER activity event.",
+    "Fixed authorize.js — added .flat() to authorizeRoles so passing an array [...roles] no longer nests into [['admin','superadmin']], preventing 403 on all admin routes.",
+    "Activity logs enriched with actor name/email via LEFT JOIN users in activityLogModel.findAll."
   ],
   "overall_status": "in_progress",
-  "overall_completion_percent": 89,
+  "overall_completion_percent": 93,
 
   "legend": {
     "status_values": ["not_started", "in_progress", "blocked", "complete"],
@@ -145,14 +159,22 @@
       "priority": "P1",
       "status": "complete",
       "completion_percent": 100,
-      "notes": "All tasks complete. adm-03: loadDashboardData wired to live API; fixed ngosRes.profiles key mismatch; NGO name resolved via ngoMap. adm-05: rejection_reason column added to campaigns table; stored on reject; nodemailer emailService created (gracefully no-ops if SMTP not configured); rejection email sent to NGO user; frontend reject modal requires a reason and passes it to the API.",
+      "notes": "All tasks complete including full CRUD for NGO Management and User Management. NGO table: Create (POST /admin/users + POST /admin/ngos), Edit (NGOAPI.update), Delete (NGOAPI.delete), Verify, Reject. User table: Create (POST /admin/users with role), Change Role (AdminAPI.updateUserRole), Delete (AdminAPI.deleteUser, superadmin only). Activity logs fully dynamic with actor name/email via JOIN. Backend: POST /admin/users and POST /admin/ngos added to avoid session conflicts when admin creates accounts.",
       "tasks": [
         { "id": "adm-01", "task": "Admin dashboard HTML/CSS", "status": "complete" },
         { "id": "adm-02", "task": "RBAC — admin-only route protection", "status": "complete" },
         { "id": "adm-03", "task": "View pending campaign applications", "status": "complete" },
         { "id": "adm-04", "task": "Approve campaign → set status=approved, make public", "status": "complete" },
         { "id": "adm-05", "task": "Reject campaign → set status=rejected, send reason to NGO", "status": "complete" },
-        { "id": "adm-06", "task": "Activity log for all admin actions", "status": "complete" }
+        { "id": "adm-06", "task": "Activity log for all admin actions (dynamic, filterable)", "status": "complete" },
+        { "id": "adm-07", "task": "NGO Management — dynamic table with live API data", "status": "complete" },
+        { "id": "adm-08", "task": "NGO Management — Create NGO (user + profile)", "status": "complete" },
+        { "id": "adm-09", "task": "NGO Management — Edit NGO profile (name, phone, address, description)", "status": "complete" },
+        { "id": "adm-10", "task": "NGO Management — Delete NGO", "status": "complete" },
+        { "id": "adm-11", "task": "User Management — dynamic table with live API data", "status": "complete" },
+        { "id": "adm-12", "task": "User Management — Create Account with role", "status": "complete" },
+        { "id": "adm-13", "task": "User Management — Change Role (superadmin only)", "status": "complete" },
+        { "id": "adm-14", "task": "User Management — Delete Account (superadmin only)", "status": "complete" }
       ]
     },
     {
@@ -245,13 +267,13 @@
   ],
 
   "summary": {
-    "total_tasks": 88,
-    "complete": 77,
+    "total_tasks": 96,
+    "complete": 89,
     "in_progress": 2,
     "not_started": 6,
     "blocked": 5,
-    "frontend_pages_status": "Complete — 14 HTML pages built covering all major flows. Donor and Admin/NGO sign-in portals separated with role enforcement and cross-portal navigation links.",
-    "backend_status": "Core MVC stack fully built — auth, campaigns, donations, NGO, admin routes all implemented with parameterized queries and RBAC. Email service (nodemailer) added. First-run seeder and test-account seeder both in place. Campaign queries LEFT JOIN ngo_profiles for NGO name in all responses.",
+    "frontend_pages_status": "Complete — 14 HTML pages built covering all major flows. Donor and Admin/NGO sign-in portals separated. Admin Dashboard has full CRUD for NGO Management and User Management, dynamic activity logs.",
+    "backend_status": "Core MVC stack fully built — auth, campaigns, donations, NGO, admin routes all implemented with parameterized queries and RBAC. Admin-specific user/NGO creation endpoints added (POST /admin/users, POST /admin/ngos). Email service (nodemailer) added. First-run seeder and test-account seeder in place.",
     "critical_gap": "Payment gateway integration (blocked on merchant accounts), OAuth login (blocked on app registration), SMTP credentials for email features"
   }
 }

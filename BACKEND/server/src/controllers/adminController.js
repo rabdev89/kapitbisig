@@ -1,4 +1,23 @@
 const adminService = require('../services/adminService');
+const ngoService = require('../services/ngoService');
+
+async function createUser(req, res, next) {
+	try {
+		const { firstName, lastName, email, password, role } = req.body || {};
+		if (!firstName || !lastName || !email || !password) {
+			return res.status(400).json({ message: 'firstName, lastName, email, and password are required.' });
+		}
+		const ipAddress = req.ip || req.connection.remoteAddress;
+		const user = await adminService.createAdminUser(
+			{ firstName, lastName, email, password, role: role || 'donor' },
+			req.session.userId,
+			ipAddress
+		);
+		return res.status(201).json({ message: 'User account created.', user });
+	} catch (error) {
+		next(error);
+	}
+}
 
 async function getAllUsers(req, res, next) {
 	try {
@@ -78,7 +97,25 @@ async function getActivityLog(req, res, next) {
 	}
 }
 
+async function createNGOProfile(req, res, next) {
+	try {
+		const { userId, name, registrationNumber, description, websiteUrl, phoneNumber, address } = req.body || {};
+		if (!userId || !name || !registrationNumber) {
+			return res.status(400).json({ message: 'userId, name, and registrationNumber are required.' });
+		}
+		const profile = await ngoService.createNgoProfile(
+			{ name, registrationNumber, description, websiteUrl, phoneNumber, address },
+			userId
+		);
+		return res.status(201).json({ message: 'NGO profile created.', profile });
+	} catch (error) {
+		next(error);
+	}
+}
+
 module.exports = {
+	createUser,
+	createNGOProfile,
 	getAllUsers,
 	updateUserRole,
 	deleteUser,

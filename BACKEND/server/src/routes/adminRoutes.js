@@ -5,7 +5,9 @@ const adminController = require('../controllers/adminController');
 
 const router = express.Router();
 
+router.post('/users', auth, authorize.authorizeRoles(['admin', 'superadmin']), adminController.createUser);
 router.get('/users', auth, authorize.authorizeRoles(['admin', 'superadmin']), adminController.getAllUsers);
+router.post('/ngos', auth, authorize.authorizeRoles(['admin', 'superadmin']), adminController.createNGOProfile);
 router.put('/users/:userId/role', auth, authorize.authorizeRoles(['superadmin']), adminController.updateUserRole);
 router.delete('/users/:userId', auth, authorize.authorizeRoles(['superadmin']), adminController.deleteUser);
 

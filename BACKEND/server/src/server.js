@@ -11,6 +11,7 @@ const activityLogModel = require('./models/activityLogModel');
 const passwordResetModel = require('./models/passwordResetModel');
 const likesModel = require('./models/likesModel');
 const commentsModel = require('./models/commentsModel');
+const systemSettingsModel = require('./models/systemSettingsModel');
 const { seed } = require('./seed');
 const errorHandler = require('./middleware/errorHandler');
 const { limiter, authLimiter, donationLimiter } = require('./middleware/rateLimiter');
@@ -19,6 +20,7 @@ const campaignRoutes = require('./routes/campaignRoutes');
 const donationRoutes = require('./routes/donationRoutes');
 const ngoRoutes = require('./routes/ngoRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
 
 const app = express();
 
@@ -32,7 +34,7 @@ app.use(
 	})
 );
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(
 	session({
 		name: 'kb.sid',
@@ -57,6 +59,7 @@ app.use('/campaigns', campaignRoutes);
 app.use('/donations', donationLimiter, donationRoutes);
 app.use('/ngos', ngoRoutes);
 app.use('/admin', adminRoutes);
+app.use('/settings', settingsRoutes);
 
 app.use((req, res) => {
 	res.status(404).json({ message: 'Not found' });
@@ -74,6 +77,7 @@ async function start() {
 		await passwordResetModel.createPasswordResetTokensTable();
 		await likesModel.createCampaignLikesTable();
 		await commentsModel.createCampaignCommentsTable();
+		await systemSettingsModel.createSystemSettingsTable();
 		await seed();
 
 		app.listen(config.port, () => {

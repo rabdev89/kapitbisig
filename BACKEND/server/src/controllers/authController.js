@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const { findByEmail, findById, createUser, updatePassword, updateProfile } = require('../models/userModel');
 const passwordResetModel = require('../models/passwordResetModel');
+const ActivityLog = require('../models/activityLogModel');
 const { validateEmail, validatePassword } = require('../utils/validators');
 const constants = require('../utils/constants');
 
@@ -74,6 +75,14 @@ async function signin(req, res, next) {
 		}
 
 		req.session.userId = user.id;
+		ActivityLog.create({
+			adminId: user.id,
+			action: 'LOGIN',
+			entityType: 'USER',
+			entityId: user.id,
+			description: `${user.email} signed in`,
+			ipAddress: req.ip || req.connection.remoteAddress
+		}).catch(() => {});
 		return res.json({ message: 'Signed in.', user: toPublicUser(user) });
 	} catch (error) {
 		next(error);

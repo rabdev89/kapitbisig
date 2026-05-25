@@ -42,11 +42,20 @@ async function createUsersTable() {
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 	`);
 	// Migrate existing tables that pre-date these columns
-	await Promise.all([
-		db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url MEDIUMTEXT AFTER role`).catch(() => {}),
-		db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS cover_url MEDIUMTEXT AFTER avatar_url`).catch(() => {}),
-		db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_prefs TEXT AFTER cover_url`).catch(() => {})
-	]);
+	const [cols] = await db.query(
+		`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+		 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'`
+	);
+	const existing = new Set(cols.map(function (c) { return c.COLUMN_NAME; }));
+	if (!existing.has('avatar_url')) {
+		await db.query(`ALTER TABLE users ADD COLUMN avatar_url MEDIUMTEXT AFTER role`);
+	}
+	if (!existing.has('cover_url')) {
+		await db.query(`ALTER TABLE users ADD COLUMN cover_url MEDIUMTEXT AFTER avatar_url`);
+	}
+	if (!existing.has('notification_prefs')) {
+		await db.query(`ALTER TABLE users ADD COLUMN notification_prefs TEXT AFTER cover_url`);
+	}
 }
 
 
@@ -78,6 +87,15 @@ async function createUser({ firstName, lastName, email, passwordHash }) {
 		`INSERT INTO users (first_name, last_name, email, password_hash, role)
 		 VALUES (?, ?, ?, ?, 'donor')`,
 		[String(firstName || '').trim(), String(lastName || '').trim(), String(email || '').toLowerCase(), passwordHash]
+	);
+	return findById(result.insertId);
+}
+
+async function createUserWithRole({ firstName, lastName, email, passwordHash, role = 'donor' }) {
+	const [result] = await db.query(
+		`INSERT INTO users (first_name, last_name, email, password_hash, role)
+		 VALUES (?, ?, ?, ?, ?)`,
+		[String(firstName || '').trim(), String(lastName || '').trim(), String(email || '').toLowerCase(), passwordHash, role]
 	);
 	return findById(result.insertId);
 }
@@ -139,6 +157,7 @@ module.exports = {
 	findById,
 	findAll,
 	createUser,
+	createUserWithRole,
 	updateRole,
 	updatePassword,
 	updateProfile,

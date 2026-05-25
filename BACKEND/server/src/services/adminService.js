@@ -1,5 +1,30 @@
+const bcrypt = require('bcryptjs');
 const User = require('../models/userModel');
 const ActivityLog = require('../models/activityLogModel');
+
+async function createAdminUser({ firstName, lastName, email, password, role = 'donor' }, adminId, ipAddress) {
+	const existing = await User.findByEmail(String(email).trim());
+	if (existing) {
+		throw { statusCode: 409, message: 'Email already registered.' };
+	}
+	const passwordHash = await bcrypt.hash(String(password), 10);
+	const user = await User.createUserWithRole({
+		firstName: String(firstName).trim(),
+		lastName: String(lastName).trim(),
+		email: String(email).trim().toLowerCase(),
+		passwordHash,
+		role
+	});
+	await ActivityLog.create({
+		adminId,
+		action: 'CREATE_USER',
+		entityType: 'USER',
+		entityId: user.id,
+		description: `Admin created ${role} account for ${email}`,
+		ipAddress
+	});
+	return user;
+}
 
 async function getAllUsers(limit = 50, offset = 0) {
 	const users = await User.findAll(limit, offset);
@@ -86,6 +111,7 @@ async function getActivityLog(id) {
 }
 
 module.exports = {
+	createAdminUser,
 	getAllUsers,
 	updateUserRole,
 	deleteUserAccount,

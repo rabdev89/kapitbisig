@@ -197,6 +197,15 @@ const AdminAPI = {
 		http.get(`/admin/activity-logs/${id}`)
 };
 
+/* ── SETTINGS API ── */
+const SettingsAPI = {
+	getPayment: () =>
+		http.get('/settings/payment'),
+
+	updatePayment: (data) =>
+		http.put('/settings/payment', data)
+};
+
 /* ── AUTH STATE MANAGEMENT ── */
 const AuthState = {
 	currentUser: null,

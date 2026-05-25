@@ -77,18 +77,26 @@ const SEED_CAMPAIGNS = [
 ];
 
 async function seed() {
-	// Check if any campaigns already exist — skip seeding if so
-	const [existing] = await db.query('SELECT COUNT(*) AS cnt FROM campaigns');
-	if (existing[0].cnt > 0) return;
-
-	console.log('  ↳ Seeding default admin, NGO user, profile, and campaigns…');
-
-	const adminHash = await bcrypt.hash('Admin@KB2025!', 10);
-	await db.query(
-		`INSERT IGNORE INTO users (first_name, last_name, email, password_hash, role)
-		 VALUES (?, ?, ?, ?, 'admin')`,
-		['KB', 'Admin', 'admin@kapitbisig.ph', adminHash]
+	// Always ensure the default admin exists (safe to re-run via INSERT IGNORE)
+	const [[adminRow]] = await db.query(
+		`SELECT user_id FROM users WHERE email = ? LIMIT 1`,
+		['admin@kapitbisig.ph']
 	);
+	if (!adminRow) {
+		const adminHash = await bcrypt.hash('Admin@KB2025!', 10);
+		await db.query(
+			`INSERT INTO users (first_name, last_name, email, password_hash, role)
+			 VALUES (?, ?, ?, ?, 'admin')`,
+			['KB', 'Admin', 'admin@kapitbisig.ph', adminHash]
+		);
+		console.log('  ↳ Created default admin → admin@kapitbisig.ph');
+	}
+
+	// Check if campaigns already exist — skip NGO + campaign seeding if so
+	const [[{ cnt }]] = await db.query('SELECT COUNT(*) AS cnt FROM campaigns');
+	if (cnt > 0) return;
+
+	console.log('  ↳ Seeding default NGO user, profile, and campaigns…');
 
 	// 1. Create the demo NGO user
 	const passwordHash = await bcrypt.hash('kapitbisig2025!', 10);
