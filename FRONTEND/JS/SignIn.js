@@ -106,7 +106,7 @@
 				}
 				showToast('Signed in successfully.', 'info');
 				setTimeout(function () {
-					window.location.href = 'Landingpage.html';
+					window.location.href = 'index.html';
 				}, 400);
 			} catch (_error) {
 				showToast('Backend is unreachable. Start the auth server first.', 'error');

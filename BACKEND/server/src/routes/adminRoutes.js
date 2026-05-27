@@ -15,4 +15,7 @@ router.get('/activity-logs', auth, authorize.authorizeRoles(['admin', 'superadmi
 router.get('/my-activity-logs', auth, adminController.getMyActivityLogs);
 router.get('/activity-logs/:id', auth, authorize.authorizeRoles(['admin', 'superadmin']), adminController.getActivityLog);
 
+router.get('/donations', auth, authorize.authorizeRoles(['admin', 'superadmin']), adminController.getAllDonations);
+router.put('/donations/:id/status', auth, authorize.authorizeRoles(['admin', 'superadmin']), adminController.updateDonationStatus);
+
 module.exports = router;

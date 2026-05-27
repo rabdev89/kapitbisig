@@ -27,13 +27,14 @@
 			'ngo-management',
 			'user-management',
 			'approvals',
+			'donations',
 			'moderation',
 			'support',
 			'notifications',
 			'activity-logs',
 			'settings'
 		],
-		ngo: ['dashboard', 'campaigns', 'analytics', 'support', 'settings']
+		ngo: ['dashboard', 'campaigns', 'analytics', 'donations', 'support', 'settings']
 	};
 
 	const roleProfiles = {
@@ -58,6 +59,7 @@
 		'ngo-management': { label: 'NGO Management', icon: 'M4 21h16M7 21V8h10v13M9 8V5h6v3' },
 		'user-management': { label: 'User Management', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87' },
 		approvals: { label: 'Approval Queue', icon: 'M20 6L9 17l-5-5' },
+		donations: { label: 'Donation Approvals', icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z' },
 		moderation: { label: 'Moderation', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
 		support: { label: 'Support Center', icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
 		notifications: { label: 'Notifications', icon: 'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0' },
@@ -650,6 +652,154 @@
 			.join('');
 	}
 
+	async function renderDonationsTable() {
+		const table = qs('donationsTable');
+		if (!table) return;
+		table.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:#888">Loading…</td></tr>';
+
+		const statusEl = qs('donStatusFilter');
+		const methodEl = qs('donMethodFilter');
+		const status = statusEl ? statusEl.value : '';
+		const method = methodEl ? methodEl.value : '';
+
+		const isNGO = state.role === 'ngo';
+
+		try {
+			const res = isNGO
+				? await NGOAPI.getMyDonations({ status: status || null, paymentMethod: method || null, limit: 100 })
+				: await AdminAPI.getDonations({ status: status || null, paymentMethod: method || null, limit: 100 });
+			const donations = res.donations || [];
+
+			if (!donations.length) {
+				table.innerHTML = '<tr><td colspan="7" style="padding:28px;text-align:center;color:#888">No donations found.</td></tr>';
+				return;
+			}
+
+			const statusColor = { pending: '#e6a817', completed: '#27ae60', failed: '#e74c3c', refunded: '#888' };
+			const methodLabel = { bank_transfer: 'Bank Transfer', gcash: 'GCash', paymaya: 'PayMaya', card: 'Card' };
+
+			table.innerHTML = `
+				<thead><tr>
+					<th>Donor</th>
+					<th>Campaign</th>
+					<th>Amount</th>
+					<th>Method</th>
+					<th>Date</th>
+					<th>Status</th>
+					<th>Actions</th>
+				</tr></thead>
+				<tbody>
+				${donations.map((d) => `
+					<tr>
+						<td>
+							<div style="font-weight:600;font-size:0.85rem">${escHtml(d.donorName)}</div>
+							<div style="font-size:0.75rem;color:#888">${escHtml(d.donorEmail)}</div>
+						</td>
+						<td style="max-width:180px;font-size:0.83rem">${escHtml(d.campaignTitle)}</td>
+						<td style="font-weight:700;color:var(--primary)">₱${Number(d.amount).toLocaleString()}</td>
+						<td><span class="badge" style="font-size:0.72rem">${escHtml(methodLabel[d.paymentMethod] || d.paymentMethod)}</span></td>
+						<td style="font-size:0.78rem;color:#888">${new Date(d.createdAt).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})}</td>
+						<td><span class="badge" style="background:${statusColor[d.status] || '#888'}1a;color:${statusColor[d.status] || '#888'};font-size:0.72rem">${d.status}</span></td>
+						<td>
+							<div style="display:flex;gap:6px;flex-wrap:wrap">
+								${d.proofImage
+									? `<button class="btn btn-ghost btn-sm" style="font-size:0.75rem;padding:4px 10px" onclick="viewProof('${d.id}')">View Proof</button>`
+									: `<span style="font-size:0.75rem;color:#aaa">No proof</span>`
+								}
+								${d.status === 'pending' ? `
+									<button class="btn btn-primary btn-sm" style="font-size:0.75rem;padding:4px 10px;background:#27ae60;border-color:#27ae60" onclick="approveDonation('${d.id}')">Approve</button>
+									<button class="btn btn-ghost btn-sm" style="font-size:0.75rem;padding:4px 10px;color:#e74c3c;border-color:#e74c3c" onclick="rejectDonation('${d.id}')">Reject</button>
+								` : ''}
+							</div>
+						</td>
+					</tr>
+				`).join('')}
+				</tbody>
+			`;
+		} catch (err) {
+			table.innerHTML = `<tr><td colspan="7" style="padding:20px;text-align:center;color:#e74c3c">${escHtml(err.message)}</td></tr>`;
+		}
+	}
+
+	function filterDonations() {
+		renderDonationsTable();
+	}
+
+	async function viewProof(donationId) {
+		try {
+			const res = state.role === 'ngo'
+				? await NGOAPI.getMyDonations({ limit: 200 })
+				: await AdminAPI.getDonations({ limit: 200 });
+			const d = (res.donations || []).find((x) => x.id === String(donationId));
+			if (!d) { showToast('Donation not found.', 'error'); return; }
+
+			const meta = qs('proofModalMeta');
+			const img = qs('proofModalImg');
+			const notes = qs('proofModalNotes');
+			const noImg = qs('proofModalNoImg');
+			const actions = qs('proofModalActions');
+
+			if (meta) meta.innerHTML = `
+				<div><strong>Donor:</strong> ${escHtml(d.donorName)} (${escHtml(d.donorEmail)})</div>
+				<div><strong>Campaign:</strong> ${escHtml(d.campaignTitle)}</div>
+				<div><strong>Amount:</strong> ₱${Number(d.amount).toLocaleString()} via ${escHtml(d.paymentMethod.replace('_',' '))}</div>
+				<div><strong>Date:</strong> ${new Date(d.createdAt).toLocaleString('en-PH')}</div>
+			`;
+
+			if (d.proofImage) {
+				if (img) { img.src = d.proofImage; img.style.display = ''; }
+				if (noImg) noImg.style.display = 'none';
+			} else {
+				if (img) img.style.display = 'none';
+				if (noImg) noImg.style.display = '';
+			}
+
+			if (notes) notes.textContent = d.proofNotes ? `Reference: ${d.proofNotes}` : '';
+
+			if (actions) {
+				actions.innerHTML = d.status === 'pending' ? `
+					<button class="btn btn-ghost btn-sm" onclick="closeModal('proofModal')">Close</button>
+					<button class="btn btn-primary btn-sm" style="background:#27ae60;border-color:#27ae60" onclick="closeModal('proofModal');approveDonation('${d.id}')">Approve</button>
+					<button class="btn btn-ghost btn-sm" style="color:#e74c3c;border-color:#e74c3c" onclick="closeModal('proofModal');rejectDonation('${d.id}')">Reject</button>
+				` : `<button class="btn btn-ghost btn-sm" onclick="closeModal('proofModal')">Close</button>`;
+			}
+
+			openModal('proofModal');
+		} catch (err) {
+			showToast('Could not load proof: ' + err.message, 'error');
+		}
+	}
+
+	async function approveDonation(id) {
+		if (!confirm('Mark this donation as Completed? This will update the campaign total.')) return;
+		try {
+			if (state.role === 'ngo') {
+				await NGOAPI.reviewDonation(id, 'completed');
+			} else {
+				await AdminAPI.updateDonationStatus(id, 'completed');
+			}
+			showToast('Donation approved and campaign total updated.', 'success');
+			renderDonationsTable();
+		} catch (err) {
+			showToast('Failed: ' + err.message, 'error');
+		}
+	}
+
+	async function rejectDonation(id) {
+		if (!confirm('Mark this donation as Failed / Rejected?')) return;
+		try {
+			if (state.role === 'ngo') {
+				await NGOAPI.reviewDonation(id, 'failed');
+			} else {
+				await AdminAPI.updateDonationStatus(id, 'failed');
+			}
+			showToast('Donation rejected.', 'success');
+			renderDonationsTable();
+		} catch (err) {
+			showToast('Failed: ' + err.message, 'error');
+		}
+	}
+
 	function renderLogs(filterAction, filterDate) {
 		const table = qs('logsTable');
 		if (!table) return;
@@ -713,8 +863,8 @@
 					</div>
 					<div class="form-group" style="display:flex;align-items:center;justify-content:space-between">
 						<div>
-							<label class="form-label" style="margin:0">GCash</label>
-							<p style="font-size:0.75rem;color:#888;margin:2px 0 0">Requires Paymongo integration</p>
+							<label class="form-label" style="margin:0">GCash (Offline)</label>
+							<p style="font-size:0.75rem;color:#888;margin:2px 0 0">Donors upload a payment screenshot as proof</p>
 						</div>
 						<label class="toggle"><input type="checkbox" id="pg-gcash" ${s.gcashEnabled ? 'checked' : ''}><span class="toggle-track"></span></label>
 					</div>
@@ -751,6 +901,21 @@
 							<textarea class="form-input" id="pg-bankInstructions" rows="3" style="resize:vertical">${escHtml(s.bankInstructions)}</textarea>
 						</div>
 					</div>
+					<div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+						<p style="font-size:0.82rem;font-weight:600;margin:0 0 10px">GCash Details</p>
+						<div class="form-group">
+							<label class="form-label">GCash Number</label>
+							<input class="form-input" id="pg-gcashNumber" value="${escHtml(s.gcashNumber)}" placeholder="e.g. 0917 123 4567"/>
+						</div>
+						<div class="form-group" style="margin-top:10px">
+							<label class="form-label">Account Name</label>
+							<input class="form-input" id="pg-gcashName" value="${escHtml(s.gcashName)}" placeholder="e.g. KapitBisig Foundation"/>
+						</div>
+						<div class="form-group" style="margin-top:10px">
+							<label class="form-label">Instructions for Donors</label>
+							<textarea class="form-input" id="pg-gcashInstructions" rows="3" style="resize:vertical">${escHtml(s.gcashInstructions)}</textarea>
+						</div>
+					</div>
 				</div>
 			`;
 		} catch (_) {
@@ -769,10 +934,13 @@
 				gcashEnabled:        !!(qs('pg-gcash')         && qs('pg-gcash').checked),
 				paymayaEnabled:      !!(qs('pg-paymaya')       && qs('pg-paymaya').checked),
 				cardEnabled:         !!(qs('pg-card')           && qs('pg-card').checked),
-				bankName:            (qs('pg-bankName')         && qs('pg-bankName').value)         || '',
-				bankAccountNumber:   (qs('pg-bankAccount')      && qs('pg-bankAccount').value)      || '',
-				bankAccountName:     (qs('pg-bankPayee')        && qs('pg-bankPayee').value)        || '',
-				bankInstructions:    (qs('pg-bankInstructions') && qs('pg-bankInstructions').value) || ''
+				bankName:            (qs('pg-bankName')           && qs('pg-bankName').value)           || '',
+				bankAccountNumber:   (qs('pg-bankAccount')        && qs('pg-bankAccount').value)        || '',
+				bankAccountName:     (qs('pg-bankPayee')          && qs('pg-bankPayee').value)          || '',
+				bankInstructions:    (qs('pg-bankInstructions')   && qs('pg-bankInstructions').value)   || '',
+				gcashNumber:         (qs('pg-gcashNumber')        && qs('pg-gcashNumber').value)        || '',
+				gcashName:           (qs('pg-gcashName')          && qs('pg-gcashName').value)          || '',
+				gcashInstructions:   (qs('pg-gcashInstructions')  && qs('pg-gcashInstructions').value)  || ''
 			});
 			showToast('Payment settings saved!', 'success');
 		} catch (err) {
@@ -1353,6 +1521,10 @@
 		} else {
 			stopAnalyticsPolling();
 		}
+
+		if (pageKey === 'donations') {
+			renderDonationsTable();
+		}
 	}
 
 	function toggleSidebar() {
@@ -1932,6 +2104,10 @@
 	window.changeUserRole = changeUserRole;
 	window.filterLogs = filterLogs;
 	window.savePaymentSettings = savePaymentSettings;
+	window.filterDonations = filterDonations;
+	window.viewProof = viewProof;
+	window.approveDonation = approveDonation;
+	window.rejectDonation = rejectDonation;
 
 	init();
 })();

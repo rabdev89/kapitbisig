@@ -8,7 +8,10 @@ const DEFAULTS = {
 	payment_bank_name: '',
 	payment_bank_account_number: '',
 	payment_bank_account_name: '',
-	payment_bank_instructions: 'Transfer the exact donation amount to the bank account above, then upload a screenshot of your transaction receipt as proof.'
+	payment_bank_instructions: 'Transfer the exact donation amount to the bank account above, then upload a screenshot of your transaction receipt as proof.',
+	payment_gcash_number: '',
+	payment_gcash_name: '',
+	payment_gcash_instructions: 'Send the exact donation amount to the GCash number above, then upload a screenshot of your transaction receipt as proof.'
 };
 
 async function createSystemSettingsTable() {
@@ -55,7 +58,10 @@ function parsePaymentSettings(raw) {
 		bankName: raw.payment_bank_name || '',
 		bankAccountNumber: raw.payment_bank_account_number || '',
 		bankAccountName: raw.payment_bank_account_name || '',
-		bankInstructions: raw.payment_bank_instructions || ''
+		bankInstructions: raw.payment_bank_instructions || '',
+		gcashNumber: raw.payment_gcash_number || '',
+		gcashName: raw.payment_gcash_name || '',
+		gcashInstructions: raw.payment_gcash_instructions || ''
 	};
 }
 

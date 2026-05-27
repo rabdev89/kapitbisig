@@ -29,8 +29,8 @@ async function createDonation(data, donorId) {
 		throw { statusCode: 400, message: 'This payment method is currently unavailable.' };
 	}
 
-	if (data.paymentMethod === 'bank_transfer' && !data.proofImage) {
-		throw { statusCode: 400, message: 'A screenshot proof of payment is required for bank transfer.' };
+	if ((data.paymentMethod === 'bank_transfer' || data.paymentMethod === 'gcash') && !data.proofImage) {
+		throw { statusCode: 400, message: 'A screenshot proof of payment is required.' };
 	}
 
 	const campaign = await Campaign.findById(data.campaignId);

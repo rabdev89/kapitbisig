@@ -19,7 +19,10 @@ async function updatePaymentSettings(req, res, next) {
 			bankName,
 			bankAccountNumber,
 			bankAccountName,
-			bankInstructions
+			bankInstructions,
+			gcashNumber,
+			gcashName,
+			gcashInstructions
 		} = req.body || {};
 
 		await SystemSettings.setMany({
@@ -30,7 +33,10 @@ async function updatePaymentSettings(req, res, next) {
 			payment_bank_name: bankName || '',
 			payment_bank_account_number: bankAccountNumber || '',
 			payment_bank_account_name: bankAccountName || '',
-			payment_bank_instructions: bankInstructions || ''
+			payment_bank_instructions: bankInstructions || '',
+			payment_gcash_number: gcashNumber || '',
+			payment_gcash_name: gcashName || '',
+			payment_gcash_instructions: gcashInstructions || ''
 		});
 
 		const raw = await SystemSettings.getAll();

@@ -60,7 +60,7 @@
 			const campaignId = params.get('id') || sessionStorage.getItem('kb.selected.campaign.id');
 			if (!campaignId) {
 				ToastHelper.error('Campaign not found');
-				setTimeout(function () { window.location.href = 'Landingpage.html'; }, 1500);
+				setTimeout(function () { window.location.href = 'index.html'; }, 1500);
 				return;
 			}
 
@@ -69,14 +69,13 @@
 
 			fillCampaignInfo();
 			updateDonSummary();
-			selectPayMethod('card');
 
 			await Promise.all([loadDonationStats(), loadLikes(), loadComments()]);
 
 			startPolling();
 		} catch (error) {
 			ToastHelper.error('Failed to load campaign: ' + error.message);
-			setTimeout(function () { window.location.href = 'Landingpage.html'; }, 2000);
+			setTimeout(function () { window.location.href = 'index.html'; }, 2000);
 		} finally {
 			showLoading(false);
 		}
@@ -289,8 +288,9 @@
 	async function processPayment() {
 		if (!state.campaign || !state.payMethod) return;
 
-		if (state.payMethod === 'bank_transfer' && !state.proofImageBase64) {
-			if (qs('proofImageErr')) qs('proofImageErr').classList.add('show');
+		if ((state.payMethod === 'bank_transfer' || state.payMethod === 'gcash') && !state.proofImageBase64) {
+			const errId = state.payMethod === 'gcash' ? 'gcashProofErr' : 'proofImageErr';
+			if (qs(errId)) qs(errId).classList.add('show');
 			return;
 		}
 
@@ -304,7 +304,9 @@
 				paymentMethod: state.payMethod,
 				message: null,
 				proofImage: state.proofImageBase64 || null,
-				proofNotes: (qs('proofNotes') && qs('proofNotes').value) || null
+				proofNotes: (state.payMethod === 'gcash'
+					? (qs('gcashProofNotes') && qs('gcashProofNotes').value)
+					: (qs('proofNotes') && qs('proofNotes').value)) || null
 			});
 
 			setText('successDon', fmtMoney(state.donationAmount));
@@ -316,6 +318,9 @@
 			if (qs('proofImageInput')) qs('proofImageInput').value = '';
 			if (qs('proofPreviewWrap')) qs('proofPreviewWrap').style.display = 'none';
 			if (qs('proofNotes')) qs('proofNotes').value = '';
+			if (qs('gcashProofInput')) qs('gcashProofInput').value = '';
+			if (qs('gcashPreviewWrap')) qs('gcashPreviewWrap').style.display = 'none';
+			if (qs('gcashProofNotes')) qs('gcashProofNotes').value = '';
 
 			closeModal('paymentModal');
 			openModal('successModal');
@@ -339,10 +344,11 @@
 			var el = qs(fields[m]);
 			if (el) el.style.display = m === method ? '' : 'none';
 		});
+		const isOffline = method === 'bank_transfer' || method === 'gcash';
 		const label = qs('payBtnLabel');
-		if (label) label.textContent = method === 'bank_transfer' ? 'Submit Donation' : 'Pay Securely';
+		if (label) label.textContent = isOffline ? 'Submit Donation' : 'Pay Securely';
 		const badge = qs('sslBadge');
-		if (badge) badge.style.display = method === 'bank_transfer' ? 'none' : '';
+		if (badge) badge.style.display = isOffline ? 'none' : '';
 	}
 
 	async function toggleLike() {
@@ -494,10 +500,13 @@
 			if (enabled && !firstEnabled) firstEnabled = method;
 		});
 
-		if (qs('bankName'))        qs('bankName').textContent        = s.bankName        || '—';
-		if (qs('bankAccount'))     qs('bankAccount').textContent     = s.bankAccountNumber || '—';
-		if (qs('bankPayee'))       qs('bankPayee').textContent       = s.bankAccountName  || '—';
-		if (qs('bankInstructions')) qs('bankInstructions').textContent = s.bankInstructions || '';
+		if (qs('bankName'))         qs('bankName').textContent         = s.bankName          || '—';
+		if (qs('bankAccount'))      qs('bankAccount').textContent      = s.bankAccountNumber  || '—';
+		if (qs('bankPayee'))        qs('bankPayee').textContent        = s.bankAccountName   || '—';
+		if (qs('bankInstructions')) qs('bankInstructions').textContent = s.bankInstructions  || '';
+		if (qs('gcashNumber'))      qs('gcashNumber').textContent      = s.gcashNumber        || '—';
+		if (qs('gcashName'))        qs('gcashName').textContent        = s.gcashName          || '—';
+		if (qs('gcashInstructions')) qs('gcashInstructions').textContent = s.gcashInstructions || '';
 
 		const anyEnabled = Object.values(map).some(Boolean);
 		if (qs('noMethodsMsg'))   qs('noMethodsMsg').style.display  = anyEnabled ? 'none' : '';
@@ -509,22 +518,26 @@
 	function handleProofUpload(input) {
 		const file = input.files && input.files[0];
 		if (!file) { state.proofImageBase64 = null; return; }
+		const isGcash = input.id === 'gcashProofInput';
 		const reader = new FileReader();
 		reader.onload = function (e) {
 			state.proofImageBase64 = e.target.result;
-			const preview = qs('proofPreview');
-			const wrap = qs('proofPreviewWrap');
+			const previewId = isGcash ? 'gcashPreview' : 'proofPreview';
+			const wrapId   = isGcash ? 'gcashPreviewWrap' : 'proofPreviewWrap';
+			const errId    = isGcash ? 'gcashProofErr' : 'proofImageErr';
+			const preview = qs(previewId);
+			const wrap = qs(wrapId);
 			if (preview) preview.src = e.target.result;
 			if (wrap) wrap.style.display = '';
-			if (qs('proofImageErr')) qs('proofImageErr').classList.remove('show');
+			if (qs(errId)) qs(errId).classList.remove('show');
 		};
 		reader.readAsDataURL(file);
 	}
 
-	function init() {
+	async function init() {
 		initDrawer();
 		initCommentCharCount();
-		loadPaymentSettings();
+		await loadPaymentSettings();
 		loadCampaign();
 	}
 
