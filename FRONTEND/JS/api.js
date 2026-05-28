@@ -221,6 +221,26 @@ const AdminAPI = {
 		http.put(`/admin/donations/${id}/status`, { status, notes })
 };
 
+/* ── SUPPORT TICKET API ── */
+const TicketAPI = {
+	fileTicket: (data) =>
+		http.post('/support/tickets', data),
+
+	getMyTickets: (limit = 50, offset = 0) =>
+		http.get(`/support/tickets/my?limit=${limit}&offset=${offset}`),
+
+	getAllTickets: (filters = {}) => {
+		const params = new URLSearchParams();
+		if (filters.status) params.append('status', filters.status);
+		if (filters.limit)  params.append('limit',  filters.limit);
+		if (filters.offset) params.append('offset', filters.offset);
+		return http.get(`/support/tickets?${params}`);
+	},
+
+	updateTicket: (id, data) =>
+		http.put(`/support/tickets/${id}`, data)
+};
+
 /* ── SETTINGS API ── */
 const SettingsAPI = {
 	getPayment: () =>

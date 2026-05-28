@@ -34,7 +34,7 @@
 			'activity-logs',
 			'settings'
 		],
-		ngo: ['dashboard', 'campaigns', 'analytics', 'donations', 'support', 'settings']
+		ngo: ['dashboard', 'campaigns', 'analytics', 'donations', 'my-tickets', 'settings']
 	};
 
 	const roleProfiles = {
@@ -62,6 +62,7 @@
 		donations: { label: 'Donation Approvals', icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z' },
 		moderation: { label: 'Moderation', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
 		support: { label: 'Support Center', icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
+		'my-tickets': { label: 'My Tickets', icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
 		notifications: { label: 'Notifications', icon: 'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0' },
 		'activity-logs': { label: 'Activity Logs', icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6' },
 		settings: { label: 'Settings', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82' }
@@ -109,6 +110,7 @@
 			{ date: '2026-05-08 08:58', action: 'approve', actor: 'Maria Santos', detail: 'Approved campaign Tondo Learning Kits' },
 			{ date: '2026-05-08 08:40', action: 'create', actor: 'Paolo Cruz', detail: 'Created user account nadine@ngo.ph' }
 		],
+		donations: [],
 		ngoAnalytics: null
 	};
 
@@ -592,35 +594,160 @@
 		`;
 	}
 
-	function renderSupport() {
+	async function fileTicket() {
+		const category = (qs('ticketCategory')?.value || '').trim();
+		const subject  = (qs('ticketSubject')?.value  || '').trim();
+		const desc     = (qs('ticketDesc')?.value      || '').trim();
+		if (!subject) { showToast('Subject is required.', 'error'); return; }
+		if (!desc)    { showToast('Please describe your issue.', 'error'); return; }
+
+		try {
+			await TicketAPI.fileTicket({ category: category || 'General', subject, description: desc });
+			if (qs('ticketCategory')) qs('ticketCategory').value = '';
+			if (qs('ticketSubject'))  qs('ticketSubject').value  = '';
+			if (qs('ticketDesc'))     qs('ticketDesc').value     = '';
+			showToast('Ticket filed! Admin will respond within 24 hours.', 'success');
+			renderMyTickets();
+		} catch (err) {
+			showToast('Failed to file ticket: ' + err.message, 'error');
+		}
+	}
+
+	async function updateTicketStatus(ticketId, status, reply) {
+		try {
+			const payload = { status };
+			if (reply !== undefined) payload.adminReply = reply;
+			await TicketAPI.updateTicket(ticketId, payload);
+			renderSupport();
+			showToast('Ticket updated.', 'success');
+		} catch (err) {
+			showToast('Failed to update ticket: ' + err.message, 'error');
+		}
+	}
+
+	async function renderMyTickets() {
+		const host = qs('myTicketsContainer');
+		if (!host) return;
+
+		host.innerHTML = '<div style="padding:28px;text-align:center;color:var(--text-soft);font-size:13px">Loading…</div>';
+
+		let myTickets = [];
+		try {
+			const res = await TicketAPI.getMyTickets();
+			myTickets = res.tickets || [];
+		} catch (_) {}
+
+		const statusColor = { 'Open': '#e6a817', 'In Progress': '#4a9cc7', 'Resolved': '#2e9e6e' };
+
+		host.innerHTML = myTickets.length
+			? myTickets.map((t) => `
+				<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:12px">
+					<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px">
+						<div>
+							<div style="font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:3px">${escHtml(t.subject)}</div>
+							<div style="font-size:11.5px;color:var(--text-soft)">${escHtml(t.category)} · ${new Date(t.createdAt).toLocaleDateString('en-PH', {year:'numeric',month:'short',day:'numeric'})}</div>
+						</div>
+						<span style="display:inline-block;padding:3px 11px;border-radius:99px;font-size:11px;font-weight:700;background:${statusColor[t.status] || '#999'}18;color:${statusColor[t.status] || '#999'}">${t.status}</span>
+					</div>
+					<p style="font-size:12.5px;color:var(--text-mid);margin-bottom:${t.adminReply ? '10px' : '0'}">${escHtml(t.description)}</p>
+					${t.adminReply ? `
+						<div style="background:rgba(74,156,199,0.07);border-left:3px solid var(--sky);padding:10px 14px;border-radius:0 8px 8px 0;font-size:12.5px">
+							<div style="font-size:11px;font-weight:700;color:var(--sky);margin-bottom:4px;letter-spacing:0.5px">ADMIN REPLY</div>
+							${escHtml(t.adminReply)}
+						</div>
+					` : ''}
+				</div>
+			`).join('')
+			: `<div style="padding:28px;text-align:center;color:var(--text-soft);font-size:13px">No tickets filed yet.</div>`;
+	}
+
+	async function renderSupport() {
 		const table = qs('supportTable');
 		if (!table) return;
 
-		if (PLACEHOLDER_MODE) {
+		table.innerHTML = `
+			<thead><tr><th>Organization</th><th>Category</th><th>Subject / Description</th><th>Filed</th><th>Status</th><th>Actions</th></tr></thead>
+			<tbody><tr><td colspan="6" style="text-align:center;padding:28px;color:var(--text-soft)">Loading…</td></tr></tbody>
+		`;
+
+		let tickets = [];
+		try {
+			const res = await TicketAPI.getAllTickets({ limit: 200 });
+			tickets = res.tickets || [];
+		} catch (_) {}
+
+		if (!tickets.length) {
 			table.innerHTML = `
-				<thead><tr><th>Organization</th><th>Ticket</th><th>Concern</th><th>Status</th></tr></thead>
-				<tbody><tr><td colspan="4">Support Center placeholder. Tickets will load from backend.</td></tr></tbody>
+				<thead><tr><th>Organization</th><th>Category</th><th>Subject</th><th>Filed</th><th>Status</th><th>Actions</th></tr></thead>
+				<tbody><tr><td colspan="6" style="text-align:center;padding:28px;color:var(--text-soft)">No support tickets yet.</td></tr></tbody>
 			`;
 			return;
 		}
 
+		const statusColor = { 'Open': '#e6a817', 'In Progress': '#4a9cc7', 'Resolved': '#2e9e6e' };
+
+		const rows = tickets.map((t) => `
+			<tr>
+				<td>
+					<div style="font-weight:600;font-size:0.85rem">${escHtml(t.ngoName)}</div>
+					<div style="font-size:0.75rem;color:var(--text-soft)">${escHtml(t.ngoEmail)}</div>
+				</td>
+				<td><span class="badge" style="font-size:0.72rem">${escHtml(t.category)}</span></td>
+				<td style="max-width:220px">
+					<div style="font-size:0.84rem;font-weight:600">${escHtml(t.subject)}</div>
+					<div style="font-size:0.75rem;color:var(--text-soft);margin-top:2px;white-space:normal">${escHtml(t.description.slice(0, 80))}${t.description.length > 80 ? '…' : ''}</div>
+					${t.adminReply ? `<div style="font-size:0.72rem;color:var(--sky);margin-top:4px">✓ Replied</div>` : ''}
+				</td>
+				<td style="font-size:0.78rem;color:var(--text-soft);white-space:nowrap">${new Date(t.createdAt).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})}</td>
+				<td>
+					<span style="display:inline-block;padding:3px 10px;border-radius:99px;font-size:0.71rem;font-weight:700;background:${statusColor[t.status]||'#999'}18;color:${statusColor[t.status]||'#999'}">${t.status}</span>
+				</td>
+				<td>
+					<div style="display:flex;gap:6px;flex-wrap:wrap">
+						<button class="btn btn-ghost btn-sm" style="font-size:0.75rem;padding:4px 10px" onclick="openTicketReply(${t.id})">Reply</button>
+						${t.status !== 'In Progress' ? `<button class="btn btn-ghost btn-sm" style="font-size:0.75rem;padding:4px 10px;color:var(--sky)" onclick="updateTicketStatus(${t.id},'In Progress')">In Progress</button>` : ''}
+						${t.status !== 'Resolved' ? `<button class="btn btn-ghost btn-sm" style="font-size:0.75rem;padding:4px 10px;color:var(--green)" onclick="updateTicketStatus(${t.id},'Resolved')">Resolve</button>` : ''}
+					</div>
+				</td>
+			</tr>
+		`).join('');
+
 		table.innerHTML = `
-			<thead><tr><th>Organization</th><th>Ticket</th><th>Concern</th><th>Status</th></tr></thead>
-			<tbody>
-				${data.support
-					.map(
-						(row) => `
-							<tr>
-								<td><strong>${row.org}</strong></td>
-								<td>${row.ticket}</td>
-								<td>${row.concern}</td>
-								<td><span class="badge ${row.status === 'Open' ? 'badge-pending' : 'badge-approved'}">${row.status}</span></td>
-							</tr>
-						`
-					)
-					.join('')}
-			</tbody>
+			<thead><tr><th>Organization</th><th>Category</th><th>Subject / Description</th><th>Filed</th><th>Status</th><th>Actions</th></tr></thead>
+			<tbody>${rows}</tbody>
 		`;
+	}
+
+	async function openTicketReply(ticketId) {
+		const replyModal = qs('ticketReplyModal');
+		if (!replyModal) return;
+
+		let t = null;
+		try {
+			const res = await TicketAPI.getAllTickets({ limit: 200 });
+			t = (res.tickets || []).find((x) => String(x.id) === String(ticketId));
+		} catch (_) {}
+
+		if (!t) { showToast('Ticket not found.', 'error'); return; }
+
+		if (qs('replyTicketId'))   qs('replyTicketId').value         = ticketId;
+		if (qs('replyTicketInfo')) qs('replyTicketInfo').textContent  = `${t.ngoName} — ${t.subject}`;
+		if (qs('replyTicketMsg'))  qs('replyTicketMsg').textContent   = t.description;
+		if (qs('adminReplyInput')) qs('adminReplyInput').value        = t.adminReply || '';
+
+		const statusSel = qs('replyStatusSel');
+		if (statusSel) statusSel.value = t.status;
+
+		openModal('ticketReplyModal');
+	}
+
+	async function submitTicketReply() {
+		const id     = qs('replyTicketId')?.value  || '';
+		const reply  = qs('adminReplyInput')?.value || '';
+		const status = qs('replyStatusSel')?.value  || 'Open';
+		if (!id) return;
+		await updateTicketStatus(id, status, reply.trim());
+		closeModal('ticketReplyModal');
 	}
 
 	function renderNotifications() {
@@ -669,6 +796,7 @@
 				? await NGOAPI.getMyDonations({ status: status || null, paymentMethod: method || null, limit: 100 })
 				: await AdminAPI.getDonations({ status: status || null, paymentMethod: method || null, limit: 100 });
 			const donations = res.donations || [];
+			data.donations = donations;
 
 			if (!donations.length) {
 				table.innerHTML = '<tr><td colspan="7" style="padding:28px;text-align:center;color:#888">No donations found.</td></tr>';
@@ -727,11 +855,8 @@
 
 	async function viewProof(donationId) {
 		try {
-			const res = state.role === 'ngo'
-				? await NGOAPI.getMyDonations({ limit: 200 })
-				: await AdminAPI.getDonations({ limit: 200 });
-			const d = (res.donations || []).find((x) => x.id === String(donationId));
-			if (!d) { showToast('Donation not found.', 'error'); return; }
+			const d = (data.donations || []).find((x) => String(x.id) === String(donationId));
+			if (!d) { showToast('Donation not found. Please reload the page.', 'error'); return; }
 
 			const meta = qs('proofModalMeta');
 			const img = qs('proofModalImg');
@@ -1525,6 +1650,12 @@
 		if (pageKey === 'donations') {
 			renderDonationsTable();
 		}
+		if (pageKey === 'my-tickets') {
+			renderMyTickets();
+		}
+		if (pageKey === 'support') {
+			renderSupport();
+		}
 	}
 
 	function toggleSidebar() {
@@ -2059,6 +2190,7 @@
 		renderApprovals();
 		renderModeration();
 		renderSupport();
+		if (state.role === 'ngo') renderMyTickets();
 		renderNotifications();
 		renderLogs();
 		renderSettings();
@@ -2108,6 +2240,11 @@
 	window.viewProof = viewProof;
 	window.approveDonation = approveDonation;
 	window.rejectDonation = rejectDonation;
+	window.fileTicket = fileTicket;
+	window.updateTicketStatus = updateTicketStatus;
+	window.openTicketReply = openTicketReply;
+	window.submitTicketReply = submitTicketReply;
+	window.renderMyTickets = renderMyTickets;
 
 	init();
 })();

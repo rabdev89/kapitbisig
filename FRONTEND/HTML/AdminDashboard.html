@@ -181,6 +181,65 @@
     <div class="card"><div class="card-body" style="padding:0"><div class="table-wrap"><table id="supportTable"></table></div></div></div>
   </div>
 
+  <!-- ── MY TICKETS PAGE (NGO only) ── -->
+  <div class="page" id="page-my-tickets">
+    <div class="page-header">
+        <div>
+            <div class="page-eyebrow">Help &amp; Support</div>
+            <h1 class="page-title">My <strong>Support Tickets</strong></h1>
+        </div>
+        <div class="page-actions">
+            <button class="btn btn-ghost btn-sm" onclick="renderMyTickets()">
+                <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.28-4.65"/></svg>
+                Refresh
+            </button>
+        </div>
+    </div>
+    <!-- File a ticket card -->
+    <div class="card" style="margin-bottom:24px">
+        <div class="card-header">
+            <div class="card-header-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+            <div class="card-title">File a New Ticket</div>
+        </div>
+        <div class="card-body">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Category</label>
+                    <select id="ticketCategory" class="form-input">
+                        <option value="Technical">Technical Issue</option>
+                        <option value="Campaign">Campaign Help</option>
+                        <option value="Donation">Donation / Payment</option>
+                        <option value="Account">Account / Access</option>
+                        <option value="General">General Inquiry</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Subject</label>
+                    <input id="ticketSubject" class="form-input" type="text" placeholder="Brief summary of your issue"/>
+                </div>
+                <div class="form-group form-full">
+                    <label class="form-label">Description</label>
+                    <textarea id="ticketDesc" class="form-input" rows="4" placeholder="Describe your issue in detail. Include any error messages or steps to reproduce…"></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="card-footer">
+            <button class="btn btn-primary btn-sm" onclick="fileTicket()">
+                <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Submit Ticket
+            </button>
+        </div>
+    </div>
+    <!-- My submitted tickets -->
+    <div class="card">
+        <div class="card-header">
+            <div class="card-header-icon" style="background:linear-gradient(135deg,var(--gold),#8a6820)"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+            <div class="card-title">My Tickets</div>
+        </div>
+        <div class="card-body" id="myTicketsContainer"></div>
+    </div>
+  </div>
+
   <!-- ── NOTIFICATIONS PAGE ── -->
   <div class="page" id="page-notifications">
     <div class="page-header"><div><div class="page-eyebrow">Notifications</div><h1 class="page-title">Your <strong>Notifications</strong></h1></div><div class="page-actions"><button class="btn btn-ghost btn-sm" onclick="markAllRead()">Mark All Read</button></div></div>
@@ -368,6 +427,44 @@
     </div>
   </div>
   <div class="modal-footer"><button class="btn btn-ghost btn-sm" onclick="closeModal('editNGOModal')">Cancel</button><button class="btn btn-primary btn-sm" onclick="saveEditNGO()">Save Changes</button></div>
+</div>
+</div>
+
+<!-- Ticket Reply Modal (Admin) -->
+<div class="modal-overlay" id="ticketReplyModal" onclick="handleOverlay(event,'ticketReplyModal')">
+<div class="modal-box" style="max-width:520px">
+    <div class="modal-header">
+        <div class="card-header-icon" style="background:linear-gradient(135deg,var(--sky),var(--navy))"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+        <div class="modal-title">Ticket Reply</div>
+        <button class="modal-close" onclick="closeModal('ticketReplyModal')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+        <input type="hidden" id="replyTicketId"/>
+        <div style="margin-bottom:14px;padding:12px 16px;background:var(--surface2);border-radius:10px">
+            <div style="font-size:12px;font-weight:700;color:var(--text-soft);letter-spacing:0.5px;margin-bottom:4px">TICKET</div>
+            <div style="font-size:13.5px;font-weight:600;color:var(--text)" id="replyTicketInfo"></div>
+        </div>
+        <div style="margin-bottom:16px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--text-mid)" id="replyTicketMsg"></div>
+        <div class="form-group" style="margin-bottom:14px">
+            <label class="form-label">Update Status</label>
+            <select id="replyStatusSel" class="form-input">
+                <option value="Open">Open</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Resolved">Resolved</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Reply to NGO</label>
+            <textarea id="adminReplyInput" class="form-input" rows="4" placeholder="Write your response to the NGO…"></textarea>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('ticketReplyModal')">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="submitTicketReply()">
+            <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            Send Reply
+        </button>
+    </div>
 </div>
 </div>
 
