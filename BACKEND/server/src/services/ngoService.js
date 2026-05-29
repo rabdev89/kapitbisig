@@ -55,7 +55,7 @@ async function getUserNgoProfile(userId) {
 	return profile;
 }
 
-async function updateNgoProfile(id, data, userId) {
+async function updateNgoProfile(id, data, userId, userRole) {
 	const profile = await NGO.findById(id);
 	if (!profile) {
 		throw {
@@ -64,14 +64,16 @@ async function updateNgoProfile(id, data, userId) {
 		};
 	}
 
-	if (profile.userId !== userId) {
+	const isAdmin = userRole === 'admin' || userRole === 'superadmin';
+
+	if (!isAdmin && profile.userId !== userId) {
 		throw {
 			statusCode: 403,
 			message: 'Cannot update other NGO profiles.'
 		};
 	}
 
-	if (profile.verificationStatus === NGO_VERIFICATION_STATUS.VERIFIED) {
+	if (!isAdmin && profile.verificationStatus === NGO_VERIFICATION_STATUS.VERIFIED) {
 		throw {
 			statusCode: 400,
 			message: 'Cannot update verified NGO profiles.'
@@ -156,7 +158,7 @@ async function getNgoAnalytics(id) {
 	return analytics;
 }
 
-async function deleteNgoProfile(id, userId) {
+async function deleteNgoProfile(id, userId, userRole) {
 	const profile = await NGO.findById(id);
 	if (!profile) {
 		throw {
@@ -165,14 +167,16 @@ async function deleteNgoProfile(id, userId) {
 		};
 	}
 
-	if (profile.userId !== userId) {
+	const isAdmin = userRole === 'admin' || userRole === 'superadmin';
+
+	if (!isAdmin && profile.userId !== userId) {
 		throw {
 			statusCode: 403,
 			message: 'Cannot delete other NGO profiles.'
 		};
 	}
 
-	if (profile.verificationStatus === NGO_VERIFICATION_STATUS.VERIFIED) {
+	if (!isAdmin && profile.verificationStatus === NGO_VERIFICATION_STATUS.VERIFIED) {
 		throw {
 			statusCode: 400,
 			message: 'Cannot delete verified NGO profiles.'

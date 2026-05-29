@@ -51,7 +51,8 @@ async function updateNgoProfile(req, res, next) {
 		const profile = await ngoService.updateNgoProfile(
 			id,
 			{ name, description, websiteUrl, phoneNumber, address, logoUrl },
-			req.session.userId
+			req.session.userId,
+			req.user?.role
 		);
 
 		return res.json({ message: 'NGO profile updated.', profile });
@@ -123,7 +124,7 @@ async function getNgoAnalytics(req, res, next) {
 async function deleteNgoProfile(req, res, next) {
 	try {
 		const { id } = req.params;
-		await ngoService.deleteNgoProfile(id, req.session.userId);
+		await ngoService.deleteNgoProfile(id, req.session.userId, req.user?.role);
 		return res.json({ message: 'NGO profile deleted.' });
 	} catch (error) {
 		next(error);
