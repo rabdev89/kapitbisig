@@ -396,11 +396,6 @@
 		const host = qs('campaignGrid');
 		if (!host) return;
 
-		if (state.role !== 'ngo') {
-			host.innerHTML = '<div class="empty-state"><h3>Campaign Module Hidden</h3><p>Campaign management is not shown for Super Admin on this version.</p></div>';
-			return;
-		}
-
 		if (PLACEHOLDER_MODE) {
 			host.innerHTML = `
 				<div class="camp-card"><div class="camp-thumb"></div><div class="camp-body"><div class="camp-category">Template</div><div class="camp-title">Campaign Card Template</div><div class="camp-foot"><div class="camp-donors">No backend data yet</div></div></div></div>
@@ -672,7 +667,10 @@
 
 		let tickets = [];
 		try {
-			const res = await TicketAPI.getAllTickets({ limit: 200 });
+			const isAdmin = state.role === 'admin' || state.role === 'superadmin';
+			const res = isAdmin
+				? await TicketAPI.getAllTickets({ limit: 200 })
+				: await TicketAPI.getMyTickets(200);
 			tickets = res.tickets || [];
 		} catch (_) {}
 
@@ -724,7 +722,10 @@
 
 		let t = null;
 		try {
-			const res = await TicketAPI.getAllTickets({ limit: 200 });
+			const isAdmin = state.role === 'admin' || state.role === 'superadmin';
+			const res = isAdmin
+				? await TicketAPI.getAllTickets({ limit: 200 })
+				: await TicketAPI.getMyTickets(200);
 			t = (res.tickets || []).find((x) => String(x.id) === String(ticketId));
 		} catch (_) {}
 
@@ -1464,12 +1465,16 @@
 			const campaignFilters = { limit: 100 };
 			if (state.role === 'ngo' && state.ngoId) campaignFilters.ngoId = state.ngoId;
 
-			const [campaignsRes, usersRes, ngosRes, logsRes] = await Promise.all([
+			const isAdmin = state.role === 'admin' || state.role === 'superadmin';
+
+			const promises = [
 				CampaignAPI.list(campaignFilters),
-				AdminAPI.getAllUsers({ limit: 100 }),
+				isAdmin ? AdminAPI.getAllUsers({ limit: 100 }) : Promise.resolve({ users: [] }),
 				NGOAPI.list({ limit: 100 }),
-				AdminAPI.getActivityLogs({ limit: 50 })
-			]);
+				isAdmin ? AdminAPI.getActivityLogs({ limit: 50 }) : Promise.resolve({ logs: [] })
+			];
+
+			const [campaignsRes, usersRes, ngosRes, logsRes] = await Promise.all(promises);
 
 			const campaigns = campaignsRes.campaigns || [];
 			const users = usersRes.users || [];
@@ -2152,11 +2157,26 @@
 	}
 
 	async function init() {
+		// Verify session against backend before rendering anything
+		let serverUser = null;
+		try {
+			const meRes = await AuthAPI.getMe();
+			serverUser = meRes && meRes.user;
+		} catch (_err) {
+			serverUser = null;
+		}
+
+		const allowedRoles = ['admin', 'superadmin', 'ngo'];
+		if (!serverUser || !allowedRoles.includes(serverUser.role)) {
+			window.location.href = 'AdminLogIn.html';
+			return;
+		}
+
 		const account = readAccountContext();
 		const roleFromURL = getRoleFromURL();
-		state.role = account.role || roleFromURL || localStorage.getItem(ROLE_KEY) || 'superadmin';
-		state.accountName = account.name;
-		state.accountEmail = account.email;
+		state.role = mapRole(serverUser.role) || account.role || roleFromURL || localStorage.getItem(ROLE_KEY) || 'superadmin';
+		state.accountName = account.name || `${serverUser.firstName || ''} ${serverUser.lastName || ''}`.trim();
+		state.accountEmail = account.email || serverUser.email || '';
 		state.theme = localStorage.getItem(THEME_KEY) || 'light';
 		localStorage.setItem(ROLE_KEY, state.role);
 
@@ -2165,17 +2185,23 @@
 		renderRoleSwitcher();
 		renderSidebarNav();
 
-		await loadDashboardData();
-
+		// Resolve ngoId BEFORE loadDashboardData so the ngoId filter is applied on first load
 		if (state.role === 'ngo') {
 			try {
 				const profileRes = await NGOAPI.getMyProfile();
 				state.ngoId = profileRes.profile && profileRes.profile.id ? profileRes.profile.id : null;
-				if (state.ngoId) {
-					await loadNgoAnalytics();
-				}
 			} catch (_err) {
-				// ngoId stays null; analytics shows empty state
+				// ngoId stays null
+			}
+		}
+
+		await loadDashboardData();
+
+		if (state.role === 'ngo' && state.ngoId) {
+			try {
+				await loadNgoAnalytics();
+			} catch (_err) {
+				// analytics shows empty state
 			}
 		}
 

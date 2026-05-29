@@ -13,12 +13,21 @@ function logActivity(userId, action, entityType, entityId, description) {
 async function createCampaign(data, userId) {
 	validateRequiredFields(data, ['title', 'description', 'category', 'targetAmount']);
 
+	let ngoId = data.ngoId;
+	if (!ngoId) {
+		const profile = await NGO.findByUserId(userId);
+		if (!profile) {
+			throw { statusCode: 400, message: 'No NGO profile found for this user. Provide ngoId or create an NGO profile first.' };
+		}
+		ngoId = profile.id;
+	}
+
 	const campaign = await Campaign.create({
 		title: sanitizeString(data.title),
 		description: sanitizeString(data.description),
 		category: data.category,
 		targetAmount: Number(data.targetAmount),
-		ngoId: data.ngoId,
+		ngoId,
 		createdBy: userId,
 		status: CAMPAIGN_STATUS.DRAFT
 	});
@@ -43,7 +52,7 @@ async function listCampaigns(filters = {}, limit = 50, offset = 0) {
 	return campaigns;
 }
 
-async function updateCampaign(id, data, userId) {
+async function updateCampaign(id, data, userId, userRole) {
 	const campaign = await Campaign.findById(id);
 	if (!campaign) {
 		throw {
@@ -52,7 +61,9 @@ async function updateCampaign(id, data, userId) {
 		};
 	}
 
-	if (campaign.createdBy !== userId && campaign.status !== CAMPAIGN_STATUS.DRAFT) {
+	const isAdmin = userRole === 'admin' || userRole === 'superadmin';
+
+	if (!isAdmin && campaign.createdBy !== userId && campaign.status !== CAMPAIGN_STATUS.DRAFT) {
 		throw {
 			statusCode: 403,
 			message: 'Only the campaign creator can edit non-draft campaigns.'
@@ -174,7 +185,7 @@ async function submitForApproval(id, userId) {
 	return updated;
 }
 
-async function deleteCampaign(id, userId) {
+async function deleteCampaign(id, userId, userRole) {
 	const campaign = await Campaign.findById(id);
 	if (!campaign) {
 		throw {
@@ -183,14 +194,16 @@ async function deleteCampaign(id, userId) {
 		};
 	}
 
-	if (campaign.createdBy !== userId) {
+	const isAdmin = userRole === 'admin' || userRole === 'superadmin';
+
+	if (!isAdmin && campaign.createdBy !== userId) {
 		throw {
 			statusCode: 403,
 			message: 'Only the campaign creator can delete.'
 		};
 	}
 
-	if (campaign.status !== CAMPAIGN_STATUS.DRAFT) {
+	if (!isAdmin && campaign.status !== CAMPAIGN_STATUS.DRAFT) {
 		throw {
 			statusCode: 400,
 			message: 'Only draft campaigns can be deleted.'

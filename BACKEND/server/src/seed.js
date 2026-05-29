@@ -77,54 +77,79 @@ const SEED_CAMPAIGNS = [
 ];
 
 async function seed() {
-	// Always ensure the default admin exists (safe to re-run via INSERT IGNORE)
+	// 1. Admin user
 	const [[adminRow]] = await db.query(
 		`SELECT user_id FROM users WHERE email = ? LIMIT 1`,
 		['admin@kapitbisig.ph']
 	);
-	if (!adminRow) {
+	let adminId;
+	if (adminRow) {
+		adminId = adminRow.user_id;
+	} else {
 		const adminHash = await bcrypt.hash('Admin@KB2025!', 10);
-		await db.query(
+		const [r] = await db.query(
 			`INSERT INTO users (first_name, last_name, email, password_hash, role)
 			 VALUES (?, ?, ?, ?, 'admin')`,
 			['KB', 'Admin', 'admin@kapitbisig.ph', adminHash]
 		);
+		adminId = r.insertId;
 		console.log('  ↳ Created default admin → admin@kapitbisig.ph');
 	}
 
-	// Check if campaigns already exist — skip NGO + campaign seeding if so
-	const [[{ cnt }]] = await db.query('SELECT COUNT(*) AS cnt FROM campaigns');
-	if (cnt > 0) return;
-
-	console.log('  ↳ Seeding default NGO user, profile, and campaigns…');
-
-	// 1. Create the demo NGO user
-	const passwordHash = await bcrypt.hash('kapitbisig2025!', 10);
-	const [userResult] = await db.query(
-		`INSERT INTO users (first_name, last_name, email, password_hash, role)
-		 VALUES (?, ?, ?, ?, 'ngo')`,
-		['KapitBisig', 'Demo', 'demo@kapitbisig.ph', passwordHash]
+	// 2. Demo NGO user
+	const [[ngoUserRow]] = await db.query(
+		`SELECT user_id FROM users WHERE email = ? LIMIT 1`,
+		['demo@kapitbisig.ph']
 	);
-	const userId = userResult.insertId;
+	let userId;
+	if (ngoUserRow) {
+		userId = ngoUserRow.user_id;
+	} else {
+		const passwordHash = await bcrypt.hash('kapitbisig2025!', 10);
+		const [r] = await db.query(
+			`INSERT INTO users (first_name, last_name, email, password_hash, role)
+			 VALUES (?, ?, ?, ?, 'ngo')`,
+			['KapitBisig', 'Demo', 'demo@kapitbisig.ph', passwordHash]
+		);
+		userId = r.insertId;
+		console.log('  ↳ Created demo NGO user → demo@kapitbisig.ph');
+	}
 
-	// 2. Create the NGO profile
-	const [ngoResult] = await db.query(
-		`INSERT INTO ngo_profiles
-		   (user_id, ngo_name, description, phone_number, address, registration_number, verification_status, verified_at)
-		 VALUES (?, ?, ?, ?, ?, ?, 'verified', NOW())`,
-		[
-			userId,
-			'KapitBisig Foundation',
-			'A community-led NGO empowering Barangay 105 residents in Tondo, Manila through education, health, and livelihood programs.',
-			'09171234567',
-			'Barangay 105, Tondo, Manila, Metro Manila',
-			'NGO-2025-105-001'
-		]
+	// 3. NGO profile
+	const [[ngoProfileRow]] = await db.query(
+		`SELECT ngo_id FROM ngo_profiles WHERE user_id = ? LIMIT 1`,
+		[userId]
 	);
-	const ngoId = ngoResult.insertId;
+	let ngoId;
+	if (ngoProfileRow) {
+		ngoId = ngoProfileRow.ngo_id;
+	} else {
+		const [r] = await db.query(
+			`INSERT INTO ngo_profiles
+			   (user_id, ngo_name, description, phone_number, address, registration_number, verification_status, verified_at)
+			 VALUES (?, ?, ?, ?, ?, ?, 'verified', NOW())`,
+			[
+				userId,
+				'KapitBisig Foundation',
+				'A community-led NGO empowering Barangay 105 residents in Tondo, Manila through education, health, and livelihood programs.',
+				'09171234567',
+				'Barangay 105, Tondo, Manila, Metro Manila',
+				'NGO-2025-105-001'
+			]
+		);
+		ngoId = r.insertId;
+		console.log('  ↳ Created demo NGO profile → KapitBisig Foundation');
+	}
 
-	// 3. Insert seed campaigns
+	// 4. Campaigns — insert only if title doesn't already exist
+	let created = 0;
 	for (const c of SEED_CAMPAIGNS) {
+		const [[existing]] = await db.query(
+			`SELECT campaign_id FROM campaigns WHERE title = ? LIMIT 1`,
+			[c.title]
+		);
+		if (existing) continue;
+
 		await db.query(
 			`INSERT INTO campaigns
 			   (title, description, category, target_amount, current_amount, status,
@@ -137,9 +162,13 @@ async function seed() {
 				c.startDate, c.endDate
 			]
 		);
+		created++;
 	}
 
-	console.log(`  ↳ Seeded: 1 admin, 1 NGO user, 1 NGO profile, ${SEED_CAMPAIGNS.length} active campaigns`);
+	if (created > 0) {
+		console.log(`  ↳ Seeded ${created} new campaign(s)`);
+	}
+
 	console.log('  ↳ Admin login  → email: admin@kapitbisig.ph   password: Admin@KB2025!');
 	console.log('  ↳ NGO login    → email: demo@kapitbisig.ph    password: kapitbisig2025!');
 }
